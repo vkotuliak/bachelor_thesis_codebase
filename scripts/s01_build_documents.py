@@ -1,22 +1,11 @@
 import pandas as pd
 import json
 import re
-from collections import Counter
 
 
 # Configuration
-INPUT_CSV  = "data/equipment_database.csv"
+INPUT_CSV = "data/equipment_database.csv"
 OUTPUT_JSONL = "data/documents.jsonl"
-SEP = " | "
-
-KEEP_COLS = {
-    "Equipment name":                        "name",
-    "Aliases / synonyms":                    "aliases",
-    "Short description (2-3 sentences)":     "description",
-    "Typical applications (3+ bullets)":     "applications",
-    "Tags (5-10 keywords)":                  "tags",
-    "Confidence":                            "confidence",
-}
 
 
 # Helper functions for cleaning and building the document string
@@ -31,43 +20,36 @@ def clean(text: str) -> str:
     return text.strip().strip(",").strip()
 
 
-def build_document(row: pd.Series) -> str:
-    """Concatenate selected fields into a single retrieval document string."""
-    parts = []
-    for csv_col, _ in KEEP_COLS.items():
-        value = clean(row.get(csv_col, ""))
-        if value:
-            parts.append(value)
-    return SEP.join(parts)
-
-
 # Main
 def main():
-    confidence_counter = [] # check ratio of High and medium confidence
     df = pd.read_csv(INPUT_CSV)
-    print(f"Loaded {len(df)} rows, {len(df.columns)} columns")
-
     records = []
+    
     for idx, row in df.iterrows():
         name = str(row.get("Equipment name", f"item_{idx}")).strip()
-        confidence = str(row.get("Confidence"))
-        confidence_counter.append(confidence)
 
-        document = build_document(row)
+        aliases = clean(str(row.get("Aliases / synonyms")).strip())
+        description = clean(
+            str(row.get("Short description (2-3 sentences)")).strip()
+        )
+        applications = clean(
+            str(row.get("Typical applications (3+ bullets)")).strip()
+        )
+        tags = clean(str(row.get("Tags (5-10 keywords)")).strip())
 
-        # Keep structured fields separately for transparency / ablation studies
-        structured = {}
-        for csv_col, short_name in KEEP_COLS.items():
-            val = clean(row.get(csv_col, ""))
-            if val:
-                structured[short_name] = val
+        confidence = str(row.get("Confidence")).strip()
+        # Only take rows with high confidence into consideration (filter out 14 rows with medium)
+        if confidence != "High":
+            continue
 
         record = {
-            "id":       f"eq_{idx:04d}",
-            "name":     name,
-            "document": document,
-            # "fields":   structured, # Optional: keep structured fields for transparency / ablation studies
-            # "queries":  []
+            "id": f"eq_{idx:04d}",
+            "name": name,
+            "aliases": aliases,
+            "short description": description,
+            "typical applications": applications,
+            "tags": tags,
+            # "queries": [],
         }
         records.append(record)
 
