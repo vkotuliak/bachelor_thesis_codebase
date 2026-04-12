@@ -1,3 +1,10 @@
+"""
+This file takes the raw csv data from `equipment_database.csv` and transforms 
+them into jsonl file. 
+
+It cleans the text using clean() function, and then it takes Name, Aliases, 
+short description, typical applications and tags and puts them into the 
+`documents.jsonl` file. """
 import pandas as pd
 import json
 import re
