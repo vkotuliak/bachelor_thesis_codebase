@@ -4,7 +4,9 @@ them into jsonl file.
 
 It cleans the text using clean() function, and then it takes Name, Aliases, 
 short description, typical applications and tags and puts them into the 
-`documents.jsonl` file. """
+`documents.jsonl` file. 
+"""
+
 import pandas as pd
 import json
 import re
@@ -56,7 +58,7 @@ def main():
             "short description": description,
             "typical applications": applications,
             "tags": tags,
-            # "queries": [],
+            "queries": [],
         }
         records.append(record)
 
