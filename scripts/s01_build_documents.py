@@ -1,10 +1,10 @@
 """
-This file takes the raw csv data from `equipment_database.csv` and transforms 
-them into jsonl file. 
+This file takes the raw csv data from `equipment_database.csv` and transforms
+them into jsonl file.
 
-It cleans the text using clean() function, and then it takes Name, Aliases, 
-short description, typical applications and tags and puts them into the 
-`documents.jsonl` file. 
+It cleans the text using clean() function, and then it takes Name, Aliases,
+short description, typical applications and tags and puts them into the
+`documents.jsonl` file.
 """
 
 import pandas as pd
@@ -15,6 +15,7 @@ import re
 # Configuration
 INPUT_CSV = "data/equipment_database.csv"
 OUTPUT_JSONL = "data/documents.jsonl"
+RAG_OUTPUT = "data/rag_documents.jsonl"
 
 
 # Helper functions for cleaning and building the document string
@@ -33,7 +34,8 @@ def clean(text: str) -> str:
 def main():
     df = pd.read_csv(INPUT_CSV)
     records = []
-    
+    matches = []
+
     for idx, row in df.iterrows():
         name = str(row.get("Equipment name", f"item_{idx}")).strip()
 
@@ -62,9 +64,16 @@ def main():
         }
         records.append(record)
 
+        match = {"equipment_description": f"id: eq_{idx:04d} [SEP] name: {name} [SEP] aliases: {aliases} [SEP] short description: {description} [SEP] typical applications: {applications} [SEP] tags: {tags}"}
+        matches.append(match)
+
     with open(OUTPUT_JSONL, "w", encoding="utf-8") as f:
         for rec in records:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+    with open(RAG_OUTPUT, "w", encoding="utf-8") as f:
+        for mach in matches:
+            f.write(json.dumps(mach, ensure_ascii=False) + "\n")
 
     # Count ratio of High and Medium confidence
     # print(Counter(confidence_counter)) # Outcome: 'High': 8587, 'Medium': 14
