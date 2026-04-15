@@ -64,7 +64,10 @@ def main():
         }
         records.append(record)
 
-        match = {"equipment_description": f"id: eq_{idx:04d} [SEP] name: {name} [SEP] aliases: {aliases} [SEP] short description: {description} [SEP] typical applications: {applications} [SEP] tags: {tags}"}
+        match = {
+            "equipment_id": f"eq_{idx:04d}",
+            "equipment_description": f"name: {name} [SEP] aliases: {aliases} [SEP] short description: {description} [SEP] typical applications: {applications} [SEP] tags: {tags}"
+        }
         matches.append(match)
 
     with open(OUTPUT_JSONL, "w", encoding="utf-8") as f:
