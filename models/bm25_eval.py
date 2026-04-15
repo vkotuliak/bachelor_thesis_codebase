@@ -1,0 +1,78 @@
+import json
+from rank_bm25 import BM25Okapi
+
+EVAL_DATA = "data/test_data/rag_ready_w_queries.jsonl"
+
+
+def load_qrels(path):
+    """Loads the evaluation data from a JSONL file, returning the corpus and query-relevance pairs."""
+    corpus = []
+    qrels = []  # query, relevant_doc_idx
+
+    with open(path) as f:
+        for doc_idx, line in enumerate(f):
+            item = json.loads(line)
+            corpus.append(item["equipment_description"])
+            for query in item["queries"]:
+                qrels.append((query, doc_idx))
+
+    return corpus, qrels
+
+
+def build_bm25(corpus: list[str]) -> BM25Okapi:
+    """Builds a BM25 index from the given corpus."""
+    tokenized = [doc.lower().split() for doc in corpus]
+    return BM25Okapi(tokenized)
+
+
+# Evaluation metrics
+def recall_at_k(ranked_indices: list[int], relevant_idx: int, k: int) -> float:
+    return 1.0 if relevant_idx in ranked_indices[:k] else 0.0
+
+
+def reciprocal_rank(ranked_indices: list[int], relevant_idx: int) -> float:
+    for rank, idx in enumerate(ranked_indices, start=1):
+        if idx == relevant_idx:
+            return 1.0 / rank
+    return 0.0
+
+
+def evaluate(
+    corpus: list[str], qrels: list[tuple], ks: list[int] = [1, 5, 10]
+):
+    """Evaluates the BM25 model on the given corpus and query-relevance pairs, returning recall and MRR scores."""
+    bm25 = build_bm25(corpus)
+
+    recall_scores = {k: [] for k in ks}
+    rr_scores = []
+
+    for query, relevant_idx in qrels:
+        tokenized_query = query.lower().split()
+        scores = bm25.get_scores(tokenized_query)
+        ranked_indices = sorted(
+            range(len(scores)), key=lambda i: scores[i], reverse=True
+        )
+
+        for k in ks:
+            recall_scores[k].append(
+                recall_at_k(ranked_indices, relevant_idx, k)
+            )
+        rr_scores.append(reciprocal_rank(ranked_indices, relevant_idx))
+
+    print(f"Evaluated {len(qrels)} queries over {len(corpus)} documents\n")
+    print(f"MRR: {sum(rr_scores) / len(rr_scores):.4f}\n")
+    for k in ks:
+        print(
+            f"Recall@{k}: {sum(recall_scores[k]) / len(recall_scores[k]):.4f}"
+        )
+
+    return recall_scores, rr_scores
+
+
+def main():
+    corpus, qrels = load_qrels(EVAL_DATA)
+    evaluate(corpus, qrels)
+
+
+if __name__ == "__main__":
+    main()
