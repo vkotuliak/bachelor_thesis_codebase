@@ -3,7 +3,7 @@ import re
 import pandas as pd
 
 # The input data
-INPUT_JSON = "data/data_with_queries.jsonl"
+INPUT_JSON = "data/test_data/data_with_queries.jsonl"
 OUTPUT_JSON = "data/rag_ready_data.jsonl"
 
 def process_entry(line):
@@ -15,7 +15,7 @@ def process_entry(line):
     cleaned_queries = [re.sub(cite_pattern, "", q).strip() for q in obj["queries"]]
     
     # 2. Connect the first 6 arguments
-    keys_to_join = ["id", "name", "aliases", "short description", "typical applications", "tags"]
+    keys_to_join = ["name", "aliases", "short description", "typical applications", "tags"]
     
     # Constructing "key: value [SEP] key: value..."
     details_parts = []
