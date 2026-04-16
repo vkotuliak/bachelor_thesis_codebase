@@ -1,5 +1,5 @@
-import json
 from rank_bm25 import BM25Okapi
+import json
 
 EVAL_DATA = "data/test_data/rag_ready_w_queries.jsonl"
 
