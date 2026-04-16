@@ -4,6 +4,7 @@ import faiss
 from sentence_transformers import SentenceTransformer
 from pathlib import Path
 
+# DATA_PATH = "data/test_data/rag_ready_w_queries.jsonl"
 DATA_PATH = "data/full_data/rag_documents.jsonl"
 
 
@@ -22,7 +23,7 @@ def main():
 
     embeddings = model.encode(
         corpus,
-        batch_size=16,
+        batch_size=32,
         show_progress_bar=True,
         normalize_embeddings=True,
     )
@@ -30,7 +31,7 @@ def main():
 
     dim = embeddings.shape[1]
     index = faiss.IndexFlatIP(dim)
-    index.add(len(embeddings), embeddings)
+    index.add(embeddings)
 
     Path("data/dense").mkdir(parents=True, exist_ok=True)
     faiss.write_index(index, "data/dense/faiss.index")
