@@ -2,7 +2,6 @@ import json
 import numpy as np
 import faiss
 from sentence_transformers import SentenceTransformer
-from pathlib import Path
 
 # DATA_PATH = "data/test_data/rag_ready_w_queries.jsonl"
 DATA_PATH = "data/full_data/rag_documents.jsonl"
