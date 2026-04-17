@@ -33,8 +33,7 @@ def main():
     index = faiss.IndexFlatIP(dim)
     index.add(embeddings)
 
-    Path("data/dense").mkdir(parents=True, exist_ok=True)
-    faiss.write_index(index, "data/dense/faiss.index")
+    faiss.write_index(index, "data/dense/new_faiss.index")
     print("Index saved.")
 
 

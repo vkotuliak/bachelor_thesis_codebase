@@ -2,8 +2,10 @@ from rank_bm25 import BM25Okapi
 import json
 
 EVAL_DATA = "data/test_data/rag_ready_w_queries.jsonl"
+CORPUS_PATH = "data/full_data/rag_documents.jsonl"
 
 
+# Original function, which evaluates using only the 50 equipments that have queries
 def load_qrels(path):
     """Loads the evaluation data from a JSONL file, returning the corpus and query-relevance pairs."""
     corpus = []
@@ -17,6 +19,32 @@ def load_qrels(path):
                 qrels.append((query, doc_idx))
 
     return corpus, qrels
+
+# New functions, which evaluate using the whole corpus
+def load_corpus(path):
+    corpus = []
+    with open(path) as f:
+        for line in f:
+            item = json.loads(line)
+            corpus.append(item["equipment_description"])
+    return corpus
+
+def extract_name(description: str) -> str:
+    return description.split("[SEP]")[0].replace("name:", "").strip()
+
+corpus = load_corpus(CORPUS_PATH)
+corpus_names = [extract_name(d) for d in corpus]
+
+# --- Load queries ---
+def load_queries(path):
+    pairs = []
+    with open(path) as f:
+        for line in f:
+            item = json.loads(line)
+            gt_name = extract_name(item["equipment_description"])
+            for query in item["queries"]:
+                pairs.append((gt_name, query))
+    return pairs
 
 
 def build_bm25(corpus: list[str]) -> BM25Okapi:

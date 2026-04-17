@@ -13,9 +13,9 @@ import re
 
 
 # Configuration
-INPUT_CSV = "data/equipment_database.csv"
-OUTPUT_JSONL = "data/documents.jsonl"
-RAG_OUTPUT = "data/rag_documents.jsonl"
+INPUT_CSV = "data/full_data/equipment_database.csv"
+OUTPUT_JSONL = "data/full_data/documents.jsonl"
+RAG_OUTPUT = "data/full_data/rag_documents.jsonl"
 
 
 # Helper functions for cleaning and building the document string
@@ -65,7 +65,7 @@ def main():
         records.append(record)
 
         match = {
-            "equipment_id": f"eq_{idx:04d}",
+            "id": f"eq_{idx:04d}",
             "equipment_description": f"name: {name} [SEP] aliases: {aliases} [SEP] short description: {description} [SEP] typical applications: {applications} [SEP] tags: {tags}"
         }
         matches.append(match)
