@@ -12,13 +12,14 @@ def load_qrels(path):
     qrels = []  # query, relevant_doc_idx
 
     with open(path) as f:
-        for doc_idx, line in enumerate(f):
+        for line in f:
             item = json.loads(line)
+            doc_id = item["id"]
             corpus.append(item["equipment_description"])
             for query in item["queries"]:
-                qrels.append((query, doc_idx))
-
+                qrels.append((query, doc_id))
     return corpus, qrels
+
 
 # New functions, which evaluate using the whole corpus
 def load_corpus(path):
@@ -29,21 +30,14 @@ def load_corpus(path):
             corpus.append(item["equipment_description"])
     return corpus
 
-def extract_name(description: str) -> str:
-    return description.split("[SEP]")[0].replace("name:", "").strip()
 
-corpus = load_corpus(CORPUS_PATH)
-corpus_names = [extract_name(d) for d in corpus]
-
-# --- Load queries ---
 def load_queries(path):
     pairs = []
     with open(path) as f:
-        for line in f:
+        for doc_id, line in enumerate(f):
             item = json.loads(line)
-            gt_name = extract_name(item["equipment_description"])
             for query in item["queries"]:
-                pairs.append((gt_name, query))
+                pairs.append((query, doc_id))
     return pairs
 
 
@@ -98,7 +92,9 @@ def evaluate(
 
 
 def main():
-    corpus, qrels = load_qrels(EVAL_DATA)
+    # corpus, qrels = load_qrels(EVAL_DATA)
+    corpus = load_corpus(CORPUS_PATH)
+    qrels = load_queries(EVAL_DATA)
     evaluate(corpus, qrels)
 
 

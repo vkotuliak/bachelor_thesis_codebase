@@ -16,8 +16,7 @@ def load_data(file_path):
 
 def run_bm25():
     """Loads the corpus, builds the BM25 index, and allows the user to input a search query."""
-    file_path = CORPUS_PATH
-    corpus = load_data(file_path)
+    corpus = load_data(CORPUS_PATH)
     tokenised_corpus = [doc.split() for doc in corpus]
 
     bm25 = BM25Okapi(tokenised_corpus)
@@ -33,10 +32,11 @@ def run_bm25():
 
 def main():
     scores, top_docs = run_bm25()
-    print(f"array of scores per doc {scores}")
+    # print(f"array of scores per doc {scores}")
+    print("Top matches:")
     for i, doc in enumerate(top_docs):
         first_sep = doc.find("[SEP]")
-        print(f"Equipment number {i+1}: {doc[5:first_sep]}")
+        print(f"{i}. {doc[5:first_sep]}")
 
 
 if __name__ == "__main__":
