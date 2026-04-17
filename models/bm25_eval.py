@@ -1,7 +1,7 @@
 from rank_bm25 import BM25Okapi
 import json
 
-EVAL_DATA = "data/test_data/rag_ready_w_queries.jsonl"
+QUERIES_PATH = "data/test_data/rag_ready_w_queries.jsonl"
 CORPUS_PATH = "data/full_data/rag_documents.jsonl"
 
 
@@ -92,9 +92,9 @@ def evaluate(
 
 
 def main():
-    # corpus, qrels = load_qrels(EVAL_DATA)
+    # corpus, qrels = load_qrels(QUERIES_PATH)
     corpus = load_corpus(CORPUS_PATH)
-    qrels = load_queries(EVAL_DATA)
+    qrels = load_queries(QUERIES_PATH)
     evaluate(corpus, qrels)
 
 
