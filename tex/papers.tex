@@ -1,0 +1,85 @@
+\section{Related Work}\label{sec:papers}
+
+\subsection{Foundations and Taxonomy}
+
+The decision to ground this system in a retrieval-based architecture rather than model fine-tuning is supported by current consensus in the literature. \citet{gao2023retrieval} establish that Retrieval-Augmented Generation (RAG) provides significant operational advantages for dynamic corpora; by decoupling knowledge from model parameters, RAG avoids the computationally expensive retraining cycles required by fine-tuning whenever a database is updated. Furthermore, \citet{gao2023retrieval} note that retrieval-grounded systems mitigate hallucination risks by confining responses to explicitly traceable evidence. This property is strictly required in scientific contexts, where equipment specifications and metadata must be unconditionally accurate.
+
+Within this paradigm, \citet{sharma2025retrieval} propose a taxonomy that categorises RAG pipelines into retriever-centric, generator-centric, and hybrid architectures (the latter fusing both retrieval and generation signals). Because this thesis explicitly isolates and evaluates the search component while omitting downstream generation, it operates entirely within the retriever-centric quadrant of this taxonomy. It is critical to distinguish this pipeline-level taxonomy from the component-level search strategies evaluated herein: while the system architecture is strictly retriever-centric, the experiments compare single-method search algorithms against a \textit{hybrid retrieval} strategy (fusing sparse and dense algorithmic signals)
+
+\subsection{Evaluation Methods}
+
+Contemporary literature frequently evaluates RAG systems along three core dimensions: context relevance, answer faithfulness, and answer relevance \citep{gao2023retrieval, sharma2025retrieval}. While automated, full-pipeline frameworks exist to operationalise these metrics jointly, such tools are designed for end-to-end systems that include a text generation stage. Because this thesis isolates the retrieval component exclusively, end-to-end generative frameworks fall outside its scope. Instead, to measure context relevance directly, this study adopts classical Information Retrieval (IR) metrics, aligning with the component-level evaluation protocols established by recent domain-specific retrieval studies \citep{pandey2026domain, xu2024retrieval}.
+
+\subsection{Experimental Baseline}
+
+The experimental baseline for this thesis, comprising \texttt{BM25} for sparse retrieval and \texttt{all-mpnet-base-v2} for dense retrieval, is directly motivated by \citet{pandey2026domain}. Pandey et al. address product recommendation search within the Amazon catalogue, a domain that structurally parallels the institutional equipment discovery problem. Both domains require matching natural language queries to specialised, high-cardinality inventory items without relying on a downstream text generation stage. Because of these strong structural and domain-level parallels, this thesis formally adopts Pandey et al.'s retrieval architecture as its comparative baseline, while also utilising their established evaluation metrics of Recall@10 and MRR@10.
+
+\subsection{Retrieval Improvement}
+
+Beyond the established baseline, this study investigates two specific avenues for retrieval improvement: upgrading the dense embedding engine and fusing sparse and dense signals.
+
+First, to evaluate improvements over \texttt{all-mpnet-base-v2}, this thesis incorporates \texttt{E5} \citep{wang2022text} as an experimental condition. This decision is informed by \citet{xu2024retrieval}, who demonstrate strong retrieval performance using \texttt{E5} for specialised technical documentation, a task mechanically analogous to searching an academic equipment database. Furthermore, \texttt{E5} is a robust general-purpose bi-encoder trained via contrastive learning that has consistently ranked among the top-tier models on the Massive Text Embedding Benchmark (MTEB) \citep{muennighoff2023mteb}, a standardised suite that provides reliable cross-model comparisons.
+
+Second, Information Retrieval literature broadly supports the component-level fusion of sparse and dense retrievers. Such hybrid retrieval systems, which combine the exact-matching strengths of \texttt{BM25} with the semantic nuance of dense embeddings, consistently outperform either component in isolation across diverse natural language query types \citep{sharma2025retrieval}. By constructing a hybrid retrieval condition, this thesis operationalises this literature-backed consensus to determine whether it yields measurable accuracy gains in the highly specialised context of institutional research infrastructure.
+
+
+% \subsection{Gao and Sharma - Broad introduction}
+% The first two papers I will probably be citing are \citep{gao2023retrieval} and \citep{sharma2025retrieval}. These papers focus on describing all things surrounding development of RAG system from embedding of database to generation and evaluation.
+
+% Most important insights are:
+% \begin{enumerate}
+%     \item Why and for what applications is RAG better than fine-tunning \citep{gao2023retrieval}
+%     \item Naive vs. Advanced RAG (could be used to design baseline) \citep{gao2023retrieval}
+%     \item Retriever-based vs. Generator-based vs. Hybrid RAG \citep{sharma2025retrieval}
+%     \item Both contain information on evaluation
+% \end{enumerate}
+
+% \subsubsection{Evaluation}
+
+% Evaluation dimensions:
+% \begin{enumerate}
+%     \item \textbf{Context Relevance}
+%     \item \textbf{Answer Faithfulness}
+%     \item \textbf{Answer Relevance}
+% \end{enumerate}
+
+% Concrete evaluation techniques with different areas of focus:
+% \begin{itemize}
+%     \item Full scale automated evaluation: \textbf{ARES} or RAGAS
+%     \item Evaluation of retrieval quality: \textbf{eRAG}, info-rag or uRAG \citep{sharma2025retrieval}
+%     \item Classic IR Metrics: MRR@K and nDCG
+% \end{itemize}
+
+% \subsection{Baseline - Pandey or Xu}
+% These are the two articles (\citep{pandey2026domain} and \citep{xu2024retrieval} I would like to use for baseline construction. 
+
+% The first one by Pandey looks at Amazon recommendation search using two-tower bi-encoder. for \textit{baseline} he uses \texttt{all-mpnet-base-v2} as an embedding engine and \texttt{BM25} as a sparse retriever. As for data, they are passed in the following format: \texttt{Title + [SEP] + Brand + [SEP] + Features}. There is \textbf{no} generator. Recall@10 and MRR@10 are used for evaluation.
+% I would like to use this article to motivate my baseline. The baseline is well described and the problem resembles the problem I am working on. The thing I am unsure about is if the embedding used is good embedding for a baseline (initially I wanted to use something like word2vec which is less powerful). 
+
+
+% The second paper by Xu et al. looks at QA for Linkedin customer support using knowledge graphs. As a baseline they use embedding-based retrieval (ebr) with \texttt{E5} embedding and \texttt{cosine similarity} retrieval. Data are in \texttt{knowledge graph}; however, this technique might be unnecessarily advanced for my work. GPT-4 is used as generator. \textit{Evaluation} of retrieval performance: MRR, Recall@K and NDCG@K. QA performance; BLEU, METEOR and ROGUE.
+
+% The experiment in the first paper is more closely related to my work; however, the baseline seems more advanced than the baseline in the second paper. Which would be better to use?
+
+% \subsection{Improvement}
+
+% \subsubsection{Embedding}
+% The baseline embedding will be \texttt{all-mpnet-base-v2} and as improved embedding I chose \texttt{E5} \citep{wang2022text}. It is general purpose embedding model trained through contrastive learning. Used by \cite{xu2024retrieval} for both baseline and improved testing.
+
+% Then, I would potentially like to try to finetune my own embedding, specifically the BGE (mentioned as good model for fine-tunning \citep{gao2023retrieval}). 
+
+% Summary of big testing of embeddings in mteb and its leaderboard can be used as a source \cite{muennighoff2023mteb}.
+
+% \subsubsection{Retrieval}
+% So so far the idea is to build hybrid retrieval, combining BM25 and E5 to achieve better results.
+
+% \subsection{Proposed Experimental structure:}
+% \begin{enumerate}
+%     \item BM25 only
+%     \item all-mpnet-base-v2 dense only + ANN
+%     \item E5 pretrained dense only + ANN
+%     \item Hybrid BM25 + E5 pretrained 
+%     \item Potential inclusion of finetuned E5 (\textbf{How to put it in??})
+% \end{enumerate}
+
+
