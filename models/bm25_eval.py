@@ -6,22 +6,6 @@ QUERIES_PATH = "data/test_data/rag_ready_w_queries.jsonl"
 CORPUS_PATH = "data/full_data/rag_documents.jsonl"
 
 
-# Original function, which evaluates using only the 50 equipments that have queries
-def load_qrels(path):
-    """Loads the evaluation data from a JSONL file, returning the corpus and query-relevance pairs."""
-    corpus = []
-    qrels = []  # query, relevant_doc_idx
-
-    with open(path) as f:
-        for line in f:
-            item = json.loads(line)
-            doc_id = item["id"]
-            corpus.append(item["equipment_description"])
-            for query in item["queries"]:
-                qrels.append((query, doc_id))
-    return corpus, qrels
-
-
 # New functions, which evaluate using the whole corpus
 def load_corpus(path):
     corpus = []

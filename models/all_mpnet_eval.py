@@ -48,7 +48,7 @@ def ndcg_at_k(ranked_indices: list[int], relevant_idx: int, k: int) -> float:
 def evaluate(
     corpus: list[str], queries: list[tuple], ks: list[int] = [1, 5, 10]
 ):
-    model = SentenceTransformer("all-mpnet-base-v2")
+    model = SentenceTransformer(MODEL)
     index = faiss.read_index(INDEX_PATH)
 
     recall_scores = {k: [] for k in ks}
