@@ -1,3 +1,4 @@
+import numpy as np
 from rank_bm25 import BM25Okapi
 import json
 
@@ -59,6 +60,12 @@ def reciprocal_rank(ranked_indices: list[int], relevant_idx: int) -> float:
     return 0.0
 
 
+def ndcg_at_k(ranked_indices: list[int], relevant_idx: int, k: int) -> float:
+    if relevant_idx in ranked_indices[:k]:
+        return 1.0 / np.log2(ranked_indices[:k].index(relevant_idx) + 2)
+    return 0.0
+
+
 def evaluate(
     corpus: list[str], qrels: list[tuple], ks: list[int] = [1, 5, 10]
 ):
@@ -66,6 +73,7 @@ def evaluate(
     bm25 = build_bm25(corpus)
 
     recall_scores = {k: [] for k in ks}
+    ndcg_scores = {k: [] for k in ks}
     rr_scores = []
 
     for query, relevant_idx in qrels:
@@ -79,6 +87,7 @@ def evaluate(
             recall_scores[k].append(
                 recall_at_k(ranked_indices, relevant_idx, k)
             )
+            ndcg_scores[k].append(ndcg_at_k(ranked_indices, relevant_idx, k))
         rr_scores.append(reciprocal_rank(ranked_indices, relevant_idx))
 
     print(f"Evaluated {len(qrels)} queries over {len(corpus)} documents\n")
@@ -87,8 +96,11 @@ def evaluate(
         print(
             f"Recall@{k}: {sum(recall_scores[k]) / len(recall_scores[k]):.4f}"
         )
+    print()
+    for k in ks:
+        print(f"nDCG@{k}: {sum(ndcg_scores[k]) / len(ndcg_scores[k]):.4f}")
 
-    return recall_scores, rr_scores
+    return recall_scores, ndcg_scores, rr_scores
 
 
 def main():
