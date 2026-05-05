@@ -84,7 +84,7 @@ def ndcg_at_k(ranked_indices: list[int], relevant_idx: int, k: int) -> float:
     """Binary-relevance nDCG (single relevant document)."""
     if relevant_idx in ranked_indices[:k]:
         position = ranked_indices[:k].index(relevant_idx)
-        return 1.0 / np.log2(position + 2)  # +2 because log2(1) = 0
+        return 1.0 / np.log2(position + 2)
     return 0.0
 
 
@@ -248,10 +248,10 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    print(f"Loading corpus  : {args.corpus}")
-    corpus = load_corpus(args.corpus)
-    print(f"Loading queries : {args.queries}")
-    queries = load_queries(args.queries)
+    print(f"Loading corpus  : {DEFAULT_CORPUS_PATH}")
+    corpus = load_corpus(DEFAULT_CORPUS_PATH)
+    print(f"Loading queries : {DEFAULT_QUERIES_PATH}")
+    queries = load_queries(DEFAULT_QUERIES_PATH)
     print(f"Corpus size     : {len(corpus)}")
     print(f"Query pairs     : {len(queries)}")
     print(f"Models selected : {', '.join(args.models)}")
