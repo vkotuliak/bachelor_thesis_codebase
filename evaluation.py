@@ -1,5 +1,5 @@
 """
-evaluation.py  –  Unified retrieval evaluation for BM25, all-mpnet-base-v2, 
+evaluation.py  –  Unified retrieval evaluation for BM25, all-mpnet-base-v2,
     E5-large-v2, and Hybrid retrieval (E5 + BM25).
 
 Usage examples
@@ -17,6 +17,7 @@ Usage examples
 import argparse
 import json
 import time
+import re
 
 import numpy as np
 
@@ -66,6 +67,15 @@ def load_queries(path: str) -> list[tuple[str, int]]:
     return pairs
 
 
+def scientific_tokenizer(text: str) -> list[str]:
+    """
+    Tokenizes scientific text while preserving model numbers and IDs.
+    Example: 'Agilent 7890B GC-MS' -> ['agilent', '7890b', 'gc-ms']
+    """
+    tokens = re.findall(r"[a-z0-9]+(?:[.\-][a-z0-9]+)*", text.lower())
+    return tokens
+
+
 # Metric helpers
 def recall_at_k(ranked_indices: list[int], relevant_idx: int, k: int) -> float:
     return 1.0 if relevant_idx in ranked_indices[:k] else 0.0
@@ -110,6 +120,11 @@ def aggregate_and_print(
     print()
 
 
+def get_bm25_ranking(query_tokens: list[str], bm25_model) -> list[int]:
+    scores = bm25_model.get_scores(query_tokens)
+    return sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
+
+
 # BM25 evaluator
 def evaluate_bm25(
     corpus: list[str],
@@ -119,7 +134,7 @@ def evaluate_bm25(
     from rank_bm25 import BM25Okapi
 
     t0 = time.time()
-    tokenized = [doc.lower().split() for doc in corpus]
+    tokenized = [scientific_tokenizer(doc) for doc in corpus]
     bm25 = BM25Okapi(tokenized)
 
     recall_scores = {k: [] for k in ks}
@@ -127,11 +142,8 @@ def evaluate_bm25(
     rr_scores = []
 
     for query, relevant_idx in queries:
-        tokenized_query = query.lower().split()
-        scores = bm25.get_scores(tokenized_query)
-        ranked_indices = sorted(
-            range(len(scores)), key=lambda i: scores[i], reverse=True
-        )
+        ranked_indices = get_bm25_ranking(scientific_tokenizer(query), bm25)
+
         for k in ks:
             recall_scores[k].append(
                 recall_at_k(ranked_indices, relevant_idx, k)
@@ -183,13 +195,17 @@ def evaluate_dense(
     ndcg_scores = {k: [] for k in ks}
     rr_scores = []
 
-    top_k = max(ks)
-
-    for query, relevant_idx in queries:
-        prefixed = query_prefix + query
-        embedding = model.encode([prefixed], normalize_embeddings=True)
-        embedding = np.array(embedding, dtype=np.float32)
-        _, indices = index.search(embedding, top_k)
+    query_texts = [query_prefix + q[0] for q in queries]
+    all_embeddings = model.encode(
+        query_texts,
+        batch_size=32,
+        show_progress_bar=True,
+        normalize_embeddings=True,
+        convert_to_numpy=True,
+    )
+    for i, (_, relevant_idx) in enumerate(queries):
+        embedding = all_embeddings[i : i + 1]
+        _, indices = index.search(embedding, max(ks))
         ranked_indices = indices[0].tolist()
 
         # FAISS may return -1 for padding when fewer than top_k docs exist
@@ -223,6 +239,7 @@ def evaluate_hybrid(
     queries: list[tuple[str, int]],
     ks: list[int],
     rrf_k: int = 60,
+    top_k: int = 500,
 ) -> None:
     from rank_bm25 import BM25Okapi
     import faiss
@@ -231,13 +248,14 @@ def evaluate_hybrid(
     t0 = time.time()
 
     # --- Build BM25 index ---
-    tokenized = [doc.lower().split() for doc in corpus]
+    tokenized = [scientific_tokenizer(doc) for doc in corpus]
     bm25 = BM25Okapi(tokenized)
 
     # --- Load E5 model and FAISS index ---
     cfg = DENSE_CONFIG["e5"]
     model = SentenceTransformer(cfg["model_name"])
     index = faiss.read_index(cfg["index_path"])
+    query_prefix = cfg.get("query_prefix", "")
 
     recall_scores = {k: [] for k in ks}
     ndcg_scores = {k: [] for k in ks}
@@ -245,21 +263,28 @@ def evaluate_hybrid(
 
     corpus_size = len(corpus)
 
-    for query, relevant_idx in queries:
+    query_texts = [query_prefix + q[0] for q in queries]
+    all_embeddings = model.encode(
+        query_texts,
+        batch_size=32,
+        show_progress_bar=True,
+        normalize_embeddings=True,
+        convert_to_numpy=True,
+    )
+    for i, (_, relevant_idx) in enumerate(queries):
+        embedding = all_embeddings[i : i + 1]
+        _, indices = index.search(embedding, max(ks))
+        ranked_indices = indices[0].tolist()
+
+    for i, (query, relevant_idx) in enumerate(queries):
         # --- BM25 ranking ---
-        bm25_scores = bm25.get_scores(query.lower().split())
-        bm25_ranking = sorted(
-            range(len(bm25_scores)), key=lambda i: bm25_scores[i], reverse=True
-        )
+        bm25_ranking = get_bm25_ranking(scientific_tokenizer(query), bm25)
+        bm25_ranking = bm25_ranking[:top_k]
 
         # --- E5 ranking ---
-        prefixed = cfg["query_prefix"] + query
-        embedding = np.array(
-            model.encode([prefixed], normalize_embeddings=True),
-            dtype=np.float32,
-        )
-        _, e5_indices = index.search(embedding, corpus_size)
-        e5_ranking = [i for i in e5_indices[0] if i >= 0]
+        embedding = all_embeddings[i : i + 1]
+        _, indices = index.search(embedding, top_k)
+        e5_ranking = indices[0].tolist()
 
         # --- RRF fusion ---
         rrf_scores: dict[int, float] = {}
