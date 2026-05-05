@@ -1,19 +1,17 @@
 """
-evaluation.py  –  Unified retrieval evaluation for BM25, all-mpnet-base-v2, and E5-large-v2.
+evaluation.py  –  Unified retrieval evaluation for BM25, all-mpnet-base-v2, 
+    E5-large-v2, and Hybrid retrieval (E5 + BM25).
 
 Usage examples
 --------------
-  # Run all three models
-  python eval.py --models bm25 mpnet e5
+  # Run all four models
+  python evaluation.py --models bm25 mpnet e5 hybrid
 
   # Run only BM25 and E5
-  python eval.py --models bm25 e5
+  python evaluation.py --models bm25 e5
 
   # Run a single model
-  python eval.py --models mpnet
-
-  # Override default paths
-  python eval.py --models bm25 mpnet e5
+  python evaluation.py --models mpnet
 """
 
 import argparse
@@ -219,6 +217,82 @@ def evaluate_dense(
     )
 
 
+# Hybrid Evaluator - combines E5 and BM25 using RRF
+def evaluate_hybrid(
+    corpus: list[str],
+    queries: list[tuple[str, int]],
+    ks: list[int],
+    rrf_k: int = 60,
+) -> None:
+    from rank_bm25 import BM25Okapi
+    import faiss
+    from sentence_transformers import SentenceTransformer
+
+    t0 = time.time()
+
+    # --- Build BM25 index ---
+    tokenized = [doc.lower().split() for doc in corpus]
+    bm25 = BM25Okapi(tokenized)
+
+    # --- Load E5 model and FAISS index ---
+    cfg = DENSE_CONFIG["e5"]
+    model = SentenceTransformer(cfg["model_name"])
+    index = faiss.read_index(cfg["index_path"])
+
+    recall_scores = {k: [] for k in ks}
+    ndcg_scores = {k: [] for k in ks}
+    rr_scores = []
+
+    corpus_size = len(corpus)
+
+    for query, relevant_idx in queries:
+        # --- BM25 ranking ---
+        bm25_scores = bm25.get_scores(query.lower().split())
+        bm25_ranking = sorted(
+            range(len(bm25_scores)), key=lambda i: bm25_scores[i], reverse=True
+        )
+
+        # --- E5 ranking ---
+        prefixed = cfg["query_prefix"] + query
+        embedding = np.array(
+            model.encode([prefixed], normalize_embeddings=True),
+            dtype=np.float32,
+        )
+        _, e5_indices = index.search(embedding, corpus_size)
+        e5_ranking = [i for i in e5_indices[0] if i >= 0]
+
+        # --- RRF fusion ---
+        rrf_scores: dict[int, float] = {}
+        for rank, doc_idx in enumerate(bm25_ranking, start=1):
+            rrf_scores[doc_idx] = rrf_scores.get(doc_idx, 0) + 1 / (
+                rrf_k + rank
+            )
+        for rank, doc_idx in enumerate(e5_ranking, start=1):
+            rrf_scores[doc_idx] = rrf_scores.get(doc_idx, 0) + 1 / (
+                rrf_k + rank
+            )
+
+        ranked_indices = sorted(rrf_scores, key=rrf_scores.get, reverse=True)
+
+        for k in ks:
+            recall_scores[k].append(
+                recall_at_k(ranked_indices, relevant_idx, k)
+            )
+            ndcg_scores[k].append(ndcg_at_k(ranked_indices, relevant_idx, k))
+        rr_scores.append(reciprocal_rank(ranked_indices, relevant_idx))
+
+    aggregate_and_print(
+        "Hybrid BM25 + E5 (RRF)",
+        queries,
+        corpus_size,
+        recall_scores,
+        ndcg_scores,
+        rr_scores,
+        ks,
+        time.time() - t0,
+    )
+
+
 # CLI
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -230,9 +304,9 @@ def parse_args() -> argparse.Namespace:
         "--models",
         nargs="+",
         required=True,
-        choices=["bm25", "mpnet", "e5"],
+        choices=["bm25", "mpnet", "e5", "hybrid"],
         metavar="MODEL",
-        help="One or more of: bm25  mpnet  e5",
+        help="One or more of: bm25  mpnet  e5 hybrid",
     )
     parser.add_argument(
         "--ks",
@@ -260,6 +334,8 @@ def main() -> None:
     for model_key in args.models:
         if model_key == "bm25":
             evaluate_bm25(corpus, queries, args.ks)
+        elif model_key == "hybrid":
+            evaluate_hybrid(corpus, queries, args.ks)
         else:
             evaluate_dense(corpus, queries, args.ks, model_key)
 

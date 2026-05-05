@@ -11,6 +11,7 @@ Usage examples
 """
 
 import argparse
+from collections import defaultdict
 import json
 
 import numpy as np
@@ -73,7 +74,7 @@ def run_bm25(corpus: list[str], query: str, k: int) -> list[str]:
     tokenized_query = query.lower().split()
     top_docs = bm25.get_top_n(tokenized_query, corpus, n=k)
 
-    return [extract_name(doc) for doc in top_docs]
+    return top_docs
 
 
 def run_dense(
@@ -101,7 +102,32 @@ def run_dense(
         i for i in indices[0] if i >= 0
     ]  # filter FAISS -1 padding
 
-    return [extract_name(corpus[i]) for i in ranked_indices]
+    return ranked_indices
+
+
+def reciprocal_rank_fusion(results_list: list[list[str]], k: int = 60):
+    scores = defaultdict(float)
+    for results in results_list:
+        for rank, doc_id in enumerate(results):
+            scores[doc_id] += 1.0 / (k + rank)
+    return sorted(scores, key=scores.__getitem__, reverse=True)
+
+
+def run_hybrid(
+    corpus: list[str], query: str, k: int = 100, n: int = 5
+) -> list[str]:
+    dense_indices = run_dense(
+        corpus,
+        query,
+        k,
+        "e5",
+    )
+    dense_indices = [corpus[int(i)] for i in dense_indices]
+    sparse_indices = run_bm25(corpus, query, k)
+
+    fused = reciprocal_rank_fusion([dense_indices, sparse_indices])
+
+    return fused[:n]
 
 
 # CLI
@@ -114,7 +140,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model",
         required=True,
-        choices=["bm25", "mpnet", "e5"],
+        choices=["bm25", "mpnet", "e5", "hybrid"],
         help="Retrieval model to use.",
     )
     parser.add_argument(
@@ -154,9 +180,16 @@ def main() -> None:
             continue
 
         if args.model == "bm25":
-            results = run_bm25(corpus, query, args.k)
+            results = [
+                extract_name(doc) for doc in run_bm25(corpus, query, args.k)
+            ]
+        elif args.model == "hybrid":
+            results = [extract_name(doc) for doc in run_hybrid(corpus, query)]
         else:
-            results = run_dense(corpus, query, args.k, args.model)
+            results = [
+                extract_name(corpus[int(i)])
+                for i in run_dense(corpus, query, args.k, args.model)
+            ]
 
         print_results(results)
 
