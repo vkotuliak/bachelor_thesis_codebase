@@ -4,3 +4,4 @@ faiss-cpu
 sentence-transformers
 pathlib
 rank-bm25
+nltk

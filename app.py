@@ -16,6 +16,8 @@ import json
 
 import numpy as np
 
+import utils
+
 # Defaults
 DEFAULT_CORPUS_PATH = "data/full_data/rag_documents.jsonl"
 DEFAULT_K = 5
@@ -68,10 +70,10 @@ def print_results(results: list[str]) -> None:
 def run_bm25(corpus: list[str], query: str, k: int) -> list[str]:
     from rank_bm25 import BM25Okapi
 
-    tokenized_corpus = [doc.lower().split() for doc in corpus]
+    tokenized_corpus = [utils.scientific_tokenizer(doc) for doc in corpus]
     bm25 = BM25Okapi(tokenized_corpus)
 
-    tokenized_query = query.lower().split()
+    tokenized_query = utils.scientific_tokenizer(query)
     top_docs = bm25.get_top_n(tokenized_query, corpus, n=k)
 
     return top_docs

@@ -17,9 +17,10 @@ Usage examples
 import argparse
 import json
 import time
-import re
 
 import numpy as np
+
+import utils
 
 # Default paths
 DEFAULT_QUERIES_PATH = "data/test_data/rag_ready_w_queries.jsonl"
@@ -65,15 +66,6 @@ def load_queries(path: str) -> list[tuple[str, int]]:
             for query in queries:
                 pairs.append((query, doc_id))
     return pairs
-
-
-def scientific_tokenizer(text: str) -> list[str]:
-    """
-    Tokenizes scientific text while preserving model numbers and IDs.
-    Example: 'Agilent 7890B GC-MS' -> ['agilent', '7890b', 'gc-ms']
-    """
-    tokens = re.findall(r"[a-z0-9]+(?:[.\-][a-z0-9]+)*", text.lower())
-    return tokens
 
 
 # Metric helpers
@@ -134,7 +126,7 @@ def evaluate_bm25(
     from rank_bm25 import BM25Okapi
 
     t0 = time.time()
-    tokenized = [scientific_tokenizer(doc) for doc in corpus]
+    tokenized = [utils.scientific_tokenizer(doc) for doc in corpus]
     bm25 = BM25Okapi(tokenized)
 
     recall_scores = {k: [] for k in ks}
@@ -142,7 +134,7 @@ def evaluate_bm25(
     rr_scores = []
 
     for query, relevant_idx in queries:
-        ranked_indices = get_bm25_ranking(scientific_tokenizer(query), bm25)
+        ranked_indices = get_bm25_ranking(utils.scientific_tokenizer(query), bm25)
 
         for k in ks:
             recall_scores[k].append(
@@ -248,7 +240,7 @@ def evaluate_hybrid(
     t0 = time.time()
 
     # --- Build BM25 index ---
-    tokenized = [scientific_tokenizer(doc) for doc in corpus]
+    tokenized = [utils.scientific_tokenizer(doc) for doc in corpus]
     bm25 = BM25Okapi(tokenized)
 
     # --- Load E5 model and FAISS index ---
@@ -278,7 +270,7 @@ def evaluate_hybrid(
 
     for i, (query, relevant_idx) in enumerate(queries):
         # --- BM25 ranking ---
-        bm25_ranking = get_bm25_ranking(scientific_tokenizer(query), bm25)
+        bm25_ranking = get_bm25_ranking(utils.scientific_tokenizer(query), bm25)
         bm25_ranking = bm25_ranking[:top_k]
 
         # --- E5 ranking ---
