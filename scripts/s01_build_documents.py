@@ -60,7 +60,7 @@ def main():
             "short description": description,
             "typical applications": applications,
             "tags": tags,
-            "queries": [],
+            # "queries": [],
         }
         records.append(record)
 
