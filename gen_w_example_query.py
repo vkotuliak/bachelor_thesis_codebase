@@ -75,7 +75,7 @@ with open(INPUT_FILE, "r") as fin, open(OUTPUT_FILE, "w") as fout:
     for i, line in enumerate(fin):
         item = json.loads(line)
         try:
-            print(build_prompt(item))
+            # print(build_prompt(item))
             raw = ollama_generate(build_prompt(item))
             print(f"\n[{i}] raw:\n{raw}\n", flush=True)
             parsed = extract_json(raw)
