@@ -23,7 +23,8 @@ import numpy as np
 import utils
 
 # Default paths
-DEFAULT_QUERIES_PATH = "data/test_data/rag_ready_w_queries.jsonl"
+# DEFAULT_QUERIES_PATH = "data/test_data/rag_ready_w_queries.jsonl"
+DEFAULT_QUERIES_PATH = "data/test_data/w_queries_500.jsonl"
 DEFAULT_CORPUS_PATH = "data/full_data/rag_documents.jsonl"
 
 DENSE_CONFIG = {
@@ -60,11 +61,12 @@ def load_queries(path: str) -> list[tuple[str, int]]:
     with open(path) as f:
         for doc_id, line in enumerate(f):
             item = json.loads(line)
-            queries = item.get("queries", [])
-            if not queries:
+            query = item.get("query", "")
+            if not query:
                 continue  # skip docs that have no synthetic queries
-            for query in queries:
-                pairs.append((query, doc_id))
+            # for query in queries:
+            #     pairs.append((query, doc_id))
+            pairs.append((query, doc_id))
     return pairs
 
 
