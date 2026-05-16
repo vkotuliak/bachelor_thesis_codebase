@@ -11,7 +11,6 @@ import pandas as pd
 import json
 import re
 
-
 # Configuration
 INPUT_CSV = "data/full_data/equipment_database.csv"
 OUTPUT_JSONL = "data/full_data/documents.jsonl"
@@ -39,12 +38,16 @@ def main():
     for idx, row in df.iterrows():
         name = str(row.get("Equipment name", f"item_{idx}")).strip()
 
-        aliases = clean(str(row.get("Aliases / synonyms")).strip())
         description = clean(
             str(row.get("Short description (2-3 sentences)")).strip()
         )
         applications = clean(
             str(row.get("Typical applications (3+ bullets)")).strip()
+        )
+        research_use = clean(
+            str(
+                row.get("Research-oriented use (1-2 example study scenarios)")
+            ).strip()
         )
         tags = clean(str(row.get("Tags (5-10 keywords)")).strip())
 
@@ -56,17 +59,16 @@ def main():
         record = {
             "id": f"eq_{idx:04d}",
             "name": name,
-            "aliases": aliases,
             "short description": description,
             "typical applications": applications,
+            "research-oriented use": research_use,
             "tags": tags,
-            # "queries": [],
         }
         records.append(record)
 
         match = {
             "id": f"eq_{idx:04d}",
-            "equipment_description": f"name: {name} [SEP] aliases: {aliases} [SEP] short description: {description} [SEP] typical applications: {applications} [SEP] tags: {tags}"
+            "equipment_description": f"name: {name} [SEP] short description: {description} [SEP] typical applications: {applications} [SEP] research-oriented use: {research_use} [SEP] tags: {tags}",
         }
         matches.append(match)
 

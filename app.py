@@ -1,5 +1,6 @@
 """
-app.py  –  Interactive equipment search using BM25, all-mpnet-base-v2, or E5-large-v2.
+app.py  –  Interactive equipment search using BM25, all-mpnet-base-v2, 
+    E5-large-v2 or hybrid (BM25+E5)
 
 Usage examples
 --------------
@@ -12,7 +13,6 @@ Usage examples
 
 import argparse
 from collections import defaultdict
-import json
 
 import numpy as np
 
@@ -34,29 +34,6 @@ DENSE_CONFIG = {
         "query_prefix": "query: ",
     },
 }
-
-
-# Shared helpers
-def load_corpus(path: str) -> list[str]:
-    corpus = []
-    with open(path) as f:
-        for line in f:
-            item = json.loads(line)
-            corpus.append(item["equipment_description"])
-    return corpus
-
-
-def extract_name(description: str) -> str:
-    """Extracts the equipment name from the structured description string.
-
-    Expected format: "name: <NAME> [SEP] ..."
-    Falls back to the full description if the format is unexpected.
-    """
-    parts = description.split("[SEP]")
-    name_part = parts[0].strip()
-    if name_part.lower().startswith("name:"):
-        return name_part[len("name:") :].strip()
-    return name_part
 
 
 def print_results(results: list[str]) -> None:
@@ -163,7 +140,7 @@ def main() -> None:
     args = parse_args()
 
     print(f"Loading corpus from: {args.corpus}")
-    corpus = load_corpus(args.corpus)
+    corpus = utils.load_corpus(args.corpus)
     print(f"Corpus size: {len(corpus)} documents")
     print(f"Model: {args.model}  |  k: {args.k}\n")
 
@@ -183,13 +160,13 @@ def main() -> None:
 
         if args.model == "bm25":
             results = [
-                extract_name(doc) for doc in run_bm25(corpus, query, args.k)
+                utils.extract_name(doc) for doc in run_bm25(corpus, query, args.k)
             ]
         elif args.model == "hybrid":
-            results = [extract_name(doc) for doc in run_hybrid(corpus, query)]
+            results = [utils.extract_name(doc) for doc in run_hybrid(corpus, query)]
         else:
             results = [
-                extract_name(corpus[int(i)])
+                utils.extract_name(corpus[int(i)])
                 for i in run_dense(corpus, query, args.k, args.model)
             ]
 

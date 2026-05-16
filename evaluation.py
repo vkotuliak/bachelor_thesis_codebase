@@ -35,20 +35,9 @@ DENSE_CONFIG = {
     "e5": {
         "model_name": "intfloat/e5-large-v2",
         "index_path": "data/dense/e5_corpus.index",
-        # E5 requires a task prefix on queries at inference time
         "query_prefix": "query: ",
     },
 }
-
-
-# Data loading
-def load_corpus(path: str) -> list[str]:
-    corpus = []
-    with open(path) as f:
-        for line in f:
-            item = json.loads(line)
-            corpus.append(item["equipment_description"])
-    return corpus
 
 
 def load_queries(path: str) -> list[tuple[str, int]]:
@@ -136,7 +125,9 @@ def evaluate_bm25(
     rr_scores = []
 
     for query, relevant_idx in queries:
-        ranked_indices = get_bm25_ranking(utils.scientific_tokenizer(query), bm25)
+        ranked_indices = get_bm25_ranking(
+            utils.scientific_tokenizer(query), bm25
+        )
 
         for k in ks:
             recall_scores[k].append(
@@ -272,7 +263,9 @@ def evaluate_hybrid(
 
     for i, (query, relevant_idx) in enumerate(queries):
         # --- BM25 ranking ---
-        bm25_ranking = get_bm25_ranking(utils.scientific_tokenizer(query), bm25)
+        bm25_ranking = get_bm25_ranking(
+            utils.scientific_tokenizer(query), bm25
+        )
         bm25_ranking = bm25_ranking[:top_k]
 
         # --- E5 ranking ---
@@ -342,7 +335,7 @@ def main() -> None:
     args = parse_args()
 
     print(f"Loading corpus  : {DEFAULT_CORPUS_PATH}")
-    corpus = load_corpus(DEFAULT_CORPUS_PATH)
+    corpus = utils.load_corpus(DEFAULT_CORPUS_PATH)
     print(f"Loading queries : {DEFAULT_QUERIES_PATH}")
     queries = load_queries(DEFAULT_QUERIES_PATH)
     print(f"Corpus size     : {len(corpus)}")
