@@ -84,6 +84,7 @@ def main():
     # print(Counter(confidence_counter)) # Outcome: 'High': 8587, 'Medium': 14
 
     print(f"Written {len(records)} records to {OUTPUT_JSONL}")
+    print(f"Written {len(matches)} records to {RAG_OUTPUT}")
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@ import json
 import re
 import nltk
 from nltk.corpus import stopwords
-from nltk.stem import PorterStemmer  # or SnowballStemmer("english")
+from nltk.stem import PorterStemmer
 
 # def initial_tokenization(text: str) -> list[str]:
 #     return text.lower().split()
@@ -27,7 +27,7 @@ def scientific_tokenizer(text: str) -> list[str]:
 
 def load_corpus(path: str) -> list[str]:
     """
-    Function used in app.py and evaluation.py to load equipment description 
+    Function used in app.py and evaluation.py to load equipment description
     from corpus in jsonl format.
     """
     corpus = []
@@ -49,3 +49,28 @@ def extract_name(description: str) -> str:
     if name_part.lower().startswith("name:"):
         return name_part[len("name:") :].strip()
     return name_part
+
+
+def aggregate_and_print(
+    label: str,
+    queries: list[tuple],
+    corpus_size: int,
+    recall_scores: dict,
+    ndcg_scores: dict,
+    rr_scores: list,
+    ks: list[int],
+    elapsed: float,
+) -> None:
+    """Function to aggregate and print results from evaluation nicely."""
+    n = len(queries)
+    print(f"\n{'=' * 55}")
+    print(f"  Model : {label}")
+    print(f"  Queries evaluated : {n}  |  Corpus size : {corpus_size}")
+    print(f"  Wall time : {elapsed:.1f}s")
+    print(f"{'=' * 55}")
+    print(f"  MRR    : {sum(rr_scores) / n:.4f}")
+    for k in ks:
+        print(f"  Recall@{k:<2}: {sum(recall_scores[k]) / n:.4f}")
+    for k in ks:
+        print(f"  nDCG@{k:<2} : {sum(ndcg_scores[k]) / n:.4f}")
+    print()

@@ -17,7 +17,6 @@ Usage examples
 import argparse
 import json
 import time
-
 import numpy as np
 
 import utils
@@ -79,30 +78,6 @@ def ndcg_at_k(ranked_indices: list[int], relevant_idx: int, k: int) -> float:
     return 0.0
 
 
-def aggregate_and_print(
-    label: str,
-    queries: list[tuple],
-    corpus_size: int,
-    recall_scores: dict,
-    ndcg_scores: dict,
-    rr_scores: list,
-    ks: list[int],
-    elapsed: float,
-) -> None:
-    n = len(queries)
-    print(f"\n{'=' * 55}")
-    print(f"  Model : {label}")
-    print(f"  Queries evaluated : {n}  |  Corpus size : {corpus_size}")
-    print(f"  Wall time : {elapsed:.1f}s")
-    print(f"{'=' * 55}")
-    print(f"  MRR    : {sum(rr_scores) / n:.4f}")
-    for k in ks:
-        print(f"  Recall@{k:<2}: {sum(recall_scores[k]) / n:.4f}")
-    for k in ks:
-        print(f"  nDCG@{k:<2} : {sum(ndcg_scores[k]) / n:.4f}")
-    print()
-
-
 def get_bm25_ranking(query_tokens: list[str], bm25_model) -> list[int]:
     scores = bm25_model.get_scores(query_tokens)
     return sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
@@ -136,7 +111,7 @@ def evaluate_bm25(
             ndcg_scores[k].append(ndcg_at_k(ranked_indices, relevant_idx, k))
         rr_scores.append(reciprocal_rank(ranked_indices, relevant_idx))
 
-    aggregate_and_print(
+    utils.aggregate_and_print(
         "BM25 (Okapi)",
         queries,
         len(corpus),
@@ -206,7 +181,7 @@ def evaluate_dense(
     label = f"{model_name}" + (
         f" (prefix='{query_prefix}')" if query_prefix else ""
     )
-    aggregate_and_print(
+    utils.aggregate_and_print(
         label,
         queries,
         corpus_size,
@@ -293,7 +268,7 @@ def evaluate_hybrid(
             ndcg_scores[k].append(ndcg_at_k(ranked_indices, relevant_idx, k))
         rr_scores.append(reciprocal_rank(ranked_indices, relevant_idx))
 
-    aggregate_and_print(
+    utils.aggregate_and_print(
         "Hybrid BM25 + E5 (RRF)",
         queries,
         corpus_size,
