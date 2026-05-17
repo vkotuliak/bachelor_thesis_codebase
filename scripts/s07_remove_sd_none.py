@@ -1,3 +1,8 @@
+"""
+Script to check if an equipment has a 'short description'. If it doesn't, it 
+will be deleted and not used for evaluation.
+"""
+
 import argparse
 import json
 import os

@@ -31,7 +31,7 @@ FALLBACK_PERSONAS = [
 ]
 
 DEDUP_THRESHOLD = (
-    0.8  # Similarity ratio above which a query is considered a duplicate
+    0.8  # similarity ratio above which a query is considered a duplicate
 )
 
 
@@ -178,6 +178,7 @@ with open(INPUT_FILE, "r") as fin, open(OUTPUT_FILE, "w") as fout:
         personas = generate_personas(item, i)
 
         seen_queries: list[str] = []
+        queries_list = []
 
         # generate one query per persona
         for persona in personas:
@@ -200,16 +201,7 @@ with open(INPUT_FILE, "r") as fin, open(OUTPUT_FILE, "w") as fout:
 
                 seen_queries.append(query)
 
-                new_entry = {
-                    "equipment_id": item.get("id", i),
-                    "document": f"Name: {item.get('name')}. {item.get('short description')}",
-                    "query": query,
-                    "persona": persona["name"],
-                    "persona_description": persona["description"],
-                }
-                fout.write(json.dumps(new_entry) + "\n")
-                fout.flush()
-                total_written += 1
+                queries_list.append(query)
                 print(
                     f"  [{i}] ✓ Query written for persona '{persona['name']}'."
                 )
@@ -220,6 +212,18 @@ with open(INPUT_FILE, "r") as fin, open(OUTPUT_FILE, "w") as fout:
                     f"  [{i}] ERROR for persona '{persona['name']}': {e}",
                     file=sys.stderr,
                 )
+
+        if queries_list:
+            new_entry = {
+                "equipment_id": item.get("id", i),
+                "name": item.get("name"),
+                "query": queries_list,
+            }
+            fout.write(json.dumps(new_entry) + "\n")
+            fout.flush()
+            total_written += len(queries_list)
+        else:
+            print(f"  [{i}] WARNING: No queries generated, skipping entry.")
 
 print(
     f"\nDone. Written: {total_written} | "
