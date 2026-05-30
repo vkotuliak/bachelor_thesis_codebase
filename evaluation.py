@@ -23,13 +23,14 @@ import utils
 
 # Default paths
 # DEFAULT_QUERIES_PATH = "data/test_data/rag_ready_w_queries.jsonl"
-DEFAULT_QUERIES_PATH = "data/test_data/w_queries_500.jsonl"
+# DEFAULT_QUERIES_PATH = "data/query_generation/f100_queries.jsonl"
+DEFAULT_QUERIES_PATH = "data/query_generation/queries_from_personas.jsonl"
 DEFAULT_CORPUS_PATH = "data/full_data/rag_documents.jsonl"
 
 DENSE_CONFIG = {
     "mpnet": {
         "model_name": "all-mpnet-base-v2",
-        "index_path": "data/dense/faiss.index",
+        "index_path": "data/dense/mpnet_corpus.index",
     },
     "e5": {
         "model_name": "intfloat/e5-large-v2",
@@ -39,7 +40,7 @@ DENSE_CONFIG = {
 }
 
 
-def load_queries(path: str) -> list[tuple[str, int]]:
+def load_queries(path: str) -> list[tuple[str, str]]:
     """Returns (query_text, relevant_doc_id) pairs.
 
     doc_id is the 0-based line index in the *queries* file, which must match
@@ -47,14 +48,14 @@ def load_queries(path: str) -> list[tuple[str, int]]:
     """
     pairs = []
     with open(path) as f:
-        for doc_id, line in enumerate(f):
+        for line in f:
             item = json.loads(line)
-            query = item.get("query", "")
-            if not query:
+            queries = item.get("query", [])
+            if not queries:
                 continue  # skip docs that have no synthetic queries
-            # for query in queries:
-            #     pairs.append((query, doc_id))
-            pairs.append((query, doc_id))
+            eq_id = item["id"]
+            for query in queries:
+                pairs.append((query, eq_id))
     return pairs
 
 
@@ -85,36 +86,41 @@ def get_bm25_ranking(query_tokens: list[str], bm25_model) -> list[int]:
 
 # BM25 evaluator
 def evaluate_bm25(
-    corpus: list[str],
-    queries: list[tuple[str, int]],
+    corpus_texts: list[str],
+    corpus_ids: list[str],
+    queries: list[tuple[str, str]],
     ks: list[int],
 ) -> None:
     from rank_bm25 import BM25Okapi
 
+    id_to_pos = {eq_id: pos for pos, eq_id in enumerate(corpus_ids)}
+
     t0 = time.time()
-    tokenized = [utils.scientific_tokenizer(doc) for doc in corpus]
+    tokenized = [utils.scientific_tokenizer(doc) for doc in corpus_texts]
     bm25 = BM25Okapi(tokenized)
 
     recall_scores = {k: [] for k in ks}
     ndcg_scores = {k: [] for k in ks}
     rr_scores = []
 
-    for query, relevant_idx in queries:
+    for query, relevant_eq_id in queries:
+        relevant_pos = id_to_pos[relevant_eq_id]
+
         ranked_indices = get_bm25_ranking(
             utils.scientific_tokenizer(query), bm25
         )
 
         for k in ks:
             recall_scores[k].append(
-                recall_at_k(ranked_indices, relevant_idx, k)
+                recall_at_k(ranked_indices, relevant_pos, k)
             )
-            ndcg_scores[k].append(ndcg_at_k(ranked_indices, relevant_idx, k))
-        rr_scores.append(reciprocal_rank(ranked_indices, relevant_idx))
+            ndcg_scores[k].append(ndcg_at_k(ranked_indices, relevant_pos, k))
+        rr_scores.append(reciprocal_rank(ranked_indices, relevant_pos))
 
     utils.aggregate_and_print(
         "BM25 (Okapi)",
         queries,
-        len(corpus),
+        len(corpus_texts),
         recall_scores,
         ndcg_scores,
         rr_scores,
@@ -125,13 +131,16 @@ def evaluate_bm25(
 
 # Dense (FAISS) evaluator  –  shared by mpnet and e5
 def evaluate_dense(
-    corpus: list[str],
-    queries: list[tuple[str, int]],
+    corpus_texts: list[str],
+    corpus_ids: list[str],
+    queries: list[tuple[str, str]],
     ks: list[int],
     model_key: str,
 ) -> None:
     import faiss
     from sentence_transformers import SentenceTransformer
+
+    id_to_pos = {eq_id: pos for pos, eq_id in enumerate(corpus_ids)}
 
     cfg = DENSE_CONFIG[model_key]
     model_name = cfg["model_name"]
@@ -143,10 +152,10 @@ def evaluate_dense(
     index = faiss.read_index(index_path)
 
     # Sanity-check: index vectors should match corpus length
-    if index.ntotal != len(corpus):
+    if index.ntotal != len(corpus_texts):
         print(
             f"  [WARNING] FAISS index has {index.ntotal} vectors but corpus "
-            f"has {len(corpus)} documents. Corpus-size in the report will "
+            f"has {len(corpus_texts)} documents. Corpus-size in the report will "
             f"reflect the index, not the loaded corpus."
         )
     corpus_size = index.ntotal
@@ -163,7 +172,9 @@ def evaluate_dense(
         normalize_embeddings=True,
         convert_to_numpy=True,
     )
-    for i, (_, relevant_idx) in enumerate(queries):
+    for i, (_, relevant_eq_id) in enumerate(queries):
+        relevant_pos = id_to_pos[relevant_eq_id]
+
         embedding = all_embeddings[i : i + 1]
         _, indices = index.search(embedding, max(ks))
         ranked_indices = indices[0].tolist()
@@ -173,10 +184,10 @@ def evaluate_dense(
 
         for k in ks:
             recall_scores[k].append(
-                recall_at_k(ranked_indices, relevant_idx, k)
+                recall_at_k(ranked_indices, relevant_pos, k)
             )
-            ndcg_scores[k].append(ndcg_at_k(ranked_indices, relevant_idx, k))
-        rr_scores.append(reciprocal_rank(ranked_indices, relevant_idx))
+            ndcg_scores[k].append(ndcg_at_k(ranked_indices, relevant_pos, k))
+        rr_scores.append(reciprocal_rank(ranked_indices, relevant_pos))
 
     label = f"{model_name}" + (
         f" (prefix='{query_prefix}')" if query_prefix else ""
@@ -195,8 +206,9 @@ def evaluate_dense(
 
 # Hybrid Evaluator - combines E5 and BM25 using RRF
 def evaluate_hybrid(
-    corpus: list[str],
-    queries: list[tuple[str, int]],
+    corpus_texts: list[str],
+    corpus_ids: list[str],
+    queries: list[tuple[str, str]],
     ks: list[int],
     rrf_k: int = 60,
     top_k: int = 500,
@@ -205,10 +217,12 @@ def evaluate_hybrid(
     import faiss
     from sentence_transformers import SentenceTransformer
 
+    id_to_pos = {eq_id: pos for pos, eq_id in enumerate(corpus_ids)}
+
     t0 = time.time()
 
     # --- Build BM25 index ---
-    tokenized = [utils.scientific_tokenizer(doc) for doc in corpus]
+    tokenized = [utils.scientific_tokenizer(doc) for doc in corpus_texts]
     bm25 = BM25Okapi(tokenized)
 
     # --- Load E5 model and FAISS index ---
@@ -221,7 +235,7 @@ def evaluate_hybrid(
     ndcg_scores = {k: [] for k in ks}
     rr_scores = []
 
-    corpus_size = len(corpus)
+    corpus_size = len(corpus_texts)
 
     query_texts = [query_prefix + q[0] for q in queries]
     all_embeddings = model.encode(
@@ -231,24 +245,16 @@ def evaluate_hybrid(
         normalize_embeddings=True,
         convert_to_numpy=True,
     )
-    for i, (_, relevant_idx) in enumerate(queries):
-        embedding = all_embeddings[i : i + 1]
-        _, indices = index.search(embedding, max(ks))
-        ranked_indices = indices[0].tolist()
+    for i, (query, relevant_eq_id) in enumerate(queries):
+        relevant_pos = id_to_pos[relevant_eq_id]  # resolve ID → position
 
-    for i, (query, relevant_idx) in enumerate(queries):
-        # --- BM25 ranking ---
         bm25_ranking = get_bm25_ranking(
             utils.scientific_tokenizer(query), bm25
-        )
-        bm25_ranking = bm25_ranking[:top_k]
+        )[:top_k]
 
-        # --- E5 ranking ---
-        embedding = all_embeddings[i : i + 1]
-        _, indices = index.search(embedding, top_k)
+        _, indices = index.search(all_embeddings[i : i + 1], top_k)
         e5_ranking = indices[0].tolist()
 
-        # --- RRF fusion ---
         rrf_scores: dict[int, float] = {}
         for rank, doc_idx in enumerate(bm25_ranking, start=1):
             rrf_scores[doc_idx] = rrf_scores.get(doc_idx, 0) + 1 / (
@@ -263,10 +269,10 @@ def evaluate_hybrid(
 
         for k in ks:
             recall_scores[k].append(
-                recall_at_k(ranked_indices, relevant_idx, k)
+                recall_at_k(ranked_indices, relevant_pos, k)
             )
-            ndcg_scores[k].append(ndcg_at_k(ranked_indices, relevant_idx, k))
-        rr_scores.append(reciprocal_rank(ranked_indices, relevant_idx))
+            ndcg_scores[k].append(ndcg_at_k(ranked_indices, relevant_pos, k))
+        rr_scores.append(reciprocal_rank(ranked_indices, relevant_pos))
 
     utils.aggregate_and_print(
         "Hybrid BM25 + E5 (RRF)",
@@ -313,18 +319,18 @@ def main() -> None:
     corpus = utils.load_corpus(DEFAULT_CORPUS_PATH)
     print(f"Loading queries : {DEFAULT_QUERIES_PATH}")
     queries = load_queries(DEFAULT_QUERIES_PATH)
-    print(f"Corpus size     : {len(corpus)}")
+    print(f"Corpus size     : {len(corpus[0])}")
     print(f"Query pairs     : {len(queries)}")
     print(f"Models selected : {', '.join(args.models)}")
     print(f"k values        : {args.ks}")
 
     for model_key in args.models:
         if model_key == "bm25":
-            evaluate_bm25(corpus, queries, args.ks)
+            evaluate_bm25(corpus[0], corpus[1], queries, args.ks)
         elif model_key == "hybrid":
-            evaluate_hybrid(corpus, queries, args.ks)
+            evaluate_hybrid(corpus[0], corpus[1], queries, args.ks)
         else:
-            evaluate_dense(corpus, queries, args.ks, model_key)
+            evaluate_dense(corpus[0], corpus[1], queries, args.ks, model_key)
 
 
 if __name__ == "__main__":

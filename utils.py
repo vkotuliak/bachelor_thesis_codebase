@@ -25,17 +25,19 @@ def scientific_tokenizer(text: str) -> list[str]:
     return tokens
 
 
-def load_corpus(path: str) -> list[str]:
+def load_corpus(path: str) -> tuple[list[str], list[str]]:
     """
     Function used in app.py and evaluation.py to load equipment description
     from corpus in jsonl format.
     """
     corpus = []
+    ids = []
     with open(path) as f:
         for line in f:
             item = json.loads(line)
             corpus.append(item["equipment_description"])
-    return corpus
+            ids.append(item["id"])
+    return corpus, ids
 
 
 def extract_name(description: str) -> str:

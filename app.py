@@ -25,7 +25,7 @@ DEFAULT_K = 5
 DENSE_CONFIG = {
     "mpnet": {
         "model_name": "all-mpnet-base-v2",
-        "index_path": "data/dense/faiss.index",
+        "index_path": "data/dense/mpnet_corpus.index",
         "query_prefix": "",
     },
     "e5": {
@@ -140,7 +140,7 @@ def main() -> None:
     args = parse_args()
 
     print(f"Loading corpus from: {args.corpus}")
-    corpus = utils.load_corpus(args.corpus)
+    corpus, _ = utils.load_corpus(args.corpus)
     print(f"Corpus size: {len(corpus)} documents")
     print(f"Model: {args.model}  |  k: {args.k}\n")
 
