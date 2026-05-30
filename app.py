@@ -1,5 +1,5 @@
 """
-app.py  –  Interactive equipment search using BM25, all-mpnet-base-v2, 
+app.py  –  Interactive equipment search using BM25, all-mpnet-base-v2,
     E5-large-v2 or hybrid (BM25+E5)
 
 Usage examples
@@ -38,7 +38,8 @@ DENSE_CONFIG = {
 
 def print_results(results: list[str]) -> None:
     print("\nTop matches:")
-    for rank, name in enumerate(results, start=1):
+    names = [utils.extract_name(result) for result in results]
+    for rank, name in enumerate(names, start=1):
         print(f"  {rank}. {name}")
     print()
 
@@ -159,16 +160,20 @@ def main() -> None:
             continue
 
         if args.model == "bm25":
-            results = [
-                utils.extract_name(doc) for doc in run_bm25(corpus, query, args.k)
-            ]
+            results = [doc for doc in run_bm25(corpus, query, args.k)]
         elif args.model == "hybrid":
-            results = [utils.extract_name(doc) for doc in run_hybrid(corpus, query)]
+            results = [doc for doc in run_hybrid(corpus, query)]
         else:
-            results = [
-                utils.extract_name(corpus[int(i)])
-                for i in run_dense(corpus, query, args.k, args.model)
-            ]
+            # results = [
+            #     utils.extract_name(corpus[int(i)])
+            #     for i in run_dense(corpus, query, args.k, args.model)
+            # ]
+            # results = [
+            #     doc for doc in run_dense(corpus, query, args.k, args.model)
+            # ]
+            results = []
+            for i in run_dense(corpus, query, args.k, args.model):
+                results.append(corpus[int(i)])
 
         print_results(results)
 
