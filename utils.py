@@ -4,12 +4,17 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
 
-# def initial_tokenization(text: str) -> list[str]:
-#     return text.lower().split()
-
-# def scientific_tokenizer(text: str) -> list[str]:
-#  tokens = re.findall(r"[a-z0-9]+(?:[.\-][a-z0-9]+)*", text.lower())
-#     return tokens
+DENSE_CONFIG = {
+    "mpnet": {
+        "model_name": "all-mpnet-base-v2",
+        "index_path": "data/dense/mpnet_corpus.index",
+    },
+    "e5": {
+        "model_name": "intfloat/e5-large-v2",
+        "index_path": "data/dense/e5_corpus.index",
+        "query_prefix": "query: ",
+    },
+}
 
 nltk.download("stopwords")
 stemmer = PorterStemmer()

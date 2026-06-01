@@ -1,39 +1,27 @@
 """
 app.py  –  Interactive equipment search using BM25, all-mpnet-base-v2,
     E5-large-v2 or hybrid (BM25+E5)
+    Use --generate flag to employ qwen2.5:7b as a generator.
 
 Usage examples
 --------------
   python app.py --model bm25
-  python app.py --model mpnet
-  python app.py --model e5
   python app.py --model mpnet --k 10
   python app.py --model bm25 --corpus data/full_data/rag_documents.jsonl
+  python app.py --model e5 --generate
 """
 
 import argparse
 from collections import defaultdict
 
 import numpy as np
+from rank_bm25 import BM25Okapi
 
 import utils
 
 # Defaults
 DEFAULT_CORPUS_PATH = "data/full_data/rag_documents.jsonl"
 DEFAULT_K = 5
-
-DENSE_CONFIG = {
-    "mpnet": {
-        "model_name": "all-mpnet-base-v2",
-        "index_path": "data/dense/mpnet_corpus.index",
-        "query_prefix": "",
-    },
-    "e5": {
-        "model_name": "intfloat/e5-large-v2",
-        "index_path": "data/dense/e5_corpus.index",
-        "query_prefix": "query: ",
-    },
-}
 
 
 def print_results(results: list[str]) -> None:
@@ -45,11 +33,7 @@ def print_results(results: list[str]) -> None:
 
 
 # Model runners
-def run_bm25(corpus: list[str], query: str, k: int) -> list[str]:
-    from rank_bm25 import BM25Okapi
-
-    tokenized_corpus = [utils.scientific_tokenizer(doc) for doc in corpus]
-    bm25 = BM25Okapi(tokenized_corpus)
+def run_bm25(bm25, corpus: list[str], query: str, k: int) -> list[str]:
 
     tokenized_query = utils.scientific_tokenizer(query)
     top_docs = bm25.get_top_n(tokenized_query, corpus, n=k)
@@ -63,7 +47,7 @@ def run_dense(
     import faiss
     from sentence_transformers import SentenceTransformer
 
-    cfg = DENSE_CONFIG[model_key]
+    cfg = utils.DENSE_CONFIG[model_key]
     model = SentenceTransformer(cfg["model_name"])
     index = faiss.read_index(cfg["index_path"])
 
@@ -94,7 +78,7 @@ def reciprocal_rank_fusion(results_list: list[list[str]], k: int = 60):
 
 
 def run_hybrid(
-    corpus: list[str], query: str, k: int = 100, n: int = 5
+    bm25, corpus: list[str], query: str, k: int = 100, n: int = 5
 ) -> list[str]:
     dense_indices = run_dense(
         corpus,
@@ -103,7 +87,7 @@ def run_hybrid(
         "e5",
     )
     dense_indices = [corpus[int(i)] for i in dense_indices]
-    sparse_indices = run_bm25(corpus, query, k)
+    sparse_indices = run_bm25(bm25, corpus, query, k)
 
     fused = reciprocal_rank_fusion([dense_indices, sparse_indices])
 
@@ -134,6 +118,7 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_CORPUS_PATH,
         help=f"Path to corpus JSONL (default: {DEFAULT_CORPUS_PATH}).",
     )
+    parser.add_argument("--generate", action="store_true")
     return parser.parse_args()
 
 
@@ -143,7 +128,13 @@ def main() -> None:
     print(f"Loading corpus from: {args.corpus}")
     corpus, _ = utils.load_corpus(args.corpus)
     print(f"Corpus size: {len(corpus)} documents")
-    print(f"Model: {args.model}  |  k: {args.k}\n")
+    print(f"Model: {args.model}  |  k: {args.k}")
+
+    if args.model == "bm25" or args.model == "hybrid":
+        print("Tokenizing...")
+        tokenized_corpus = [utils.scientific_tokenizer(doc) for doc in corpus]
+        bm25 = BM25Okapi(tokenized_corpus)
+        print("Tokenization finished. \n")
 
     # Load heavy dependencies once, then loop
     while True:
@@ -160,22 +151,19 @@ def main() -> None:
             continue
 
         if args.model == "bm25":
-            results = [doc for doc in run_bm25(corpus, query, args.k)]
+            results = [doc for doc in run_bm25(bm25, corpus, query, args.k)]
         elif args.model == "hybrid":
-            results = [doc for doc in run_hybrid(corpus, query)]
+            results = [doc for doc in run_hybrid(bm25, corpus, query)]
         else:
-            # results = [
-            #     utils.extract_name(corpus[int(i)])
-            #     for i in run_dense(corpus, query, args.k, args.model)
-            # ]
-            # results = [
-            #     doc for doc in run_dense(corpus, query, args.k, args.model)
-            # ]
             results = []
             for i in run_dense(corpus, query, args.k, args.model):
                 results.append(corpus[int(i)])
 
-        print_results(results)
+        if args.generate:
+            from rag_generator import generate
+            print(generate(query, results), "\n") 
+        else:
+            print_results(results)
 
 
 if __name__ == "__main__":

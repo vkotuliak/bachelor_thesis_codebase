@@ -1,10 +1,7 @@
-import argparse
 import json
 import os
 
 import urllib.request
-import app
-import utils
 
 # global variables
 CORPUS_PATH = "data/full_data/rag_documents.jsonl"
@@ -46,70 +43,7 @@ def ollama_generate(prompt: str) -> str:
         return json.loads(resp.read())["response"]
 
 
-def get_answer(query, text):
+def generate(query: str, retrieved_docs: list[str]) -> str:
+    text = "\n".join(retrieved_docs)
     prompt = build_prompt(query, text)
-    answer = ollama_generate(prompt)
-    return answer
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Interactive equipment search (BM25 / all-mpnet / E5).",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__,
-    )
-    parser.add_argument(
-        "--model",
-        required=True,
-        choices=["bm25", "mpnet", "e5", "hybrid"],
-        help="Retrieval model to use.",
-    )
-    parser.add_argument(
-        "--k",
-        type=int,
-        default=DEFAULT_K,
-        help=f"Number of results to return (default: {DEFAULT_K}).",
-    )
-    return parser.parse_args()
-
-
-def main() -> None:
-    args = parse_args()
-
-    print(f"Loading corpus from: {CORPUS_PATH}")
-    corpus, _ = utils.load_corpus(CORPUS_PATH)
-    print(f"Corpus size: {len(corpus)} documents")
-    print(f"Model: {args.model}  |  k: {args.k}\n")
-
-    while True:
-        try:
-            query = input(
-                "Enter search query (or Ctrl+C to quit):\n> "
-            ).strip()
-        except (KeyboardInterrupt, EOFError):
-            print("\nExiting.")
-            break
-
-        if not query:
-            print("Empty query, please try again.\n")
-            continue
-
-        if args.model == "bm25":
-            results = "\n".join(
-                [doc for doc in app.run_bm25(corpus, query, args.k)]
-            )
-        elif args.model == "hybrid":
-            results = "\n".join([doc for doc in app.run_hybrid(corpus, query)])
-        else:
-            results = []
-            for i in app.run_dense(corpus, query, args.k, args.model):
-                results.append(corpus[int(i)])
-            results = "\n".join(results)
-
-        answer = get_answer(query, results)
-        print(answer)
-        print()
-
-
-if __name__ == "__main__":
-    main()
+    return ollama_generate(prompt)
