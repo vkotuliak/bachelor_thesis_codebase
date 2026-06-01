@@ -22,22 +22,8 @@ import numpy as np
 import utils
 
 # Default paths
-# DEFAULT_QUERIES_PATH = "data/test_data/rag_ready_w_queries.jsonl"
-# DEFAULT_QUERIES_PATH = "data/query_generation/f100_queries.jsonl"
-DEFAULT_QUERIES_PATH = "data/query_generation/queries_from_personas.jsonl"
+DEFAULT_QUERIES_PATH = "data/test_data/queries_from_personas.jsonl"
 DEFAULT_CORPUS_PATH = "data/full_data/rag_documents.jsonl"
-
-DENSE_CONFIG = {
-    "mpnet": {
-        "model_name": "all-mpnet-base-v2",
-        "index_path": "data/dense/mpnet_corpus.index",
-    },
-    "e5": {
-        "model_name": "intfloat/e5-large-v2",
-        "index_path": "data/dense/e5_corpus.index",
-        "query_prefix": "query: ",
-    },
-}
 
 
 def load_queries(path: str) -> list[tuple[str, str]]:
@@ -142,7 +128,7 @@ def evaluate_dense(
 
     id_to_pos = {eq_id: pos for pos, eq_id in enumerate(corpus_ids)}
 
-    cfg = DENSE_CONFIG[model_key]
+    cfg = utils.DENSE_CONFIG[model_key]
     model_name = cfg["model_name"]
     index_path = cfg["index_path"]
     query_prefix = cfg.get("query_prefix", "")
@@ -226,7 +212,7 @@ def evaluate_hybrid(
     bm25 = BM25Okapi(tokenized)
 
     # --- Load E5 model and FAISS index ---
-    cfg = DENSE_CONFIG["e5"]
+    cfg = utils.DENSE_CONFIG["e5"]
     model = SentenceTransformer(cfg["model_name"])
     index = faiss.read_index(cfg["index_path"])
     query_prefix = cfg.get("query_prefix", "")

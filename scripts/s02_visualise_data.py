@@ -1,11 +1,8 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# file_path = "data/full_data/equipment_database.csv"
-# df = pd.read_csv(file_path)
-
-file_path = "data/query_generation/i500_documents.jsonl"
-df = pd.read_json(file_path, lines=True)
+file_path = "data/full_data/equipment_database.csv"
+df = pd.read_csv(file_path)
 
 total_rows = len(df)
 missing_counts = df.isnull().sum()
