@@ -21,7 +21,7 @@ import utils
 
 # Defaults
 DEFAULT_CORPUS_PATH = "data/full_data/rag_documents.jsonl"
-DEFAULT_K = 5
+DEFAULT_K = 10
 
 
 def print_results(results: list[str]) -> None:
@@ -131,10 +131,10 @@ def main() -> None:
     print(f"Model: {args.model}  |  k: {args.k}")
 
     if args.model == "bm25" or args.model == "hybrid":
-        print("Tokenizing...")
+        print("Tokenising...")
         tokenized_corpus = [utils.scientific_tokenizer(doc) for doc in corpus]
         bm25 = BM25Okapi(tokenized_corpus)
-        print("Tokenization finished. \n")
+        print("Tokenisation finished. \n")
 
     # Load heavy dependencies once, then loop
     while True:

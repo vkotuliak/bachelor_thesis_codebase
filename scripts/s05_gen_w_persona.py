@@ -114,12 +114,23 @@ def generate_personas(item: dict, doc_index: int) -> list[dict]:
         raw = ollama_generate(prompt)
         personas = extract_json_array(raw)
 
-        # Validate structure — keep only well-formed entries
+        # validate structure — keep only well-formed entries
         valid = [
             p
             for p in personas
             if isinstance(p, dict) and "name" in p and "description" in p
         ]
+
+        # deduplicate personas
+        seen_descriptions = []
+        dedup = []
+        for p in valid:
+            if not is_duplicate(p["description"], seen_descriptions):
+                seen_descriptions.append(p["description"])
+                dedup.append(p)
+            else:
+                print(f"  [{doc_index}] SKIPPED duplicate persona '{p['name']}'.")
+
         if len(valid) < 2:
             raise ValueError(f"Too few valid personas returned ({len(valid)})")
 
@@ -146,7 +157,7 @@ Write the search query you would actually type into a university equipment porta
 Rules:
 1. Do NOT include the equipment name or any technical instrument names.
 2. Use first-person, problem-driven language (e.g., "I need to...", "We are trying to...").
-3. Write at the vocabulary level of the persona — avoid jargon unless it fits their background.
+3. Write at the vocabulary level of the persona, avoid jargon unless it fits their background.
 4. Focus on the scientific or practical problem, not on the solution.
 
 <document>
@@ -166,7 +177,6 @@ Return ONLY a JSON object:
 os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
 
 total_written = 0
-total_skipped_duplicate = 0
 total_errors = 0
 
 with open(INPUT_FILE, "r") as fin, open(OUTPUT_FILE, "w") as fout:
@@ -177,7 +187,6 @@ with open(INPUT_FILE, "r") as fin, open(OUTPUT_FILE, "w") as fout:
         # get the personas
         personas = generate_personas(item, i)
 
-        seen_queries: list[str] = []
         queries_list = []
 
         # generate one query per persona
@@ -190,16 +199,6 @@ with open(INPUT_FILE, "r") as fin, open(OUTPUT_FILE, "w") as fout:
 
                 if not query:
                     raise ValueError("Empty query returned.")
-
-                # deduplicate
-                if is_duplicate(query, seen_queries):
-                    print(
-                        f"  [{i}] SKIPPED duplicate query for persona '{persona['name']}'."
-                    )
-                    total_skipped_duplicate += 1
-                    continue
-
-                seen_queries.append(query)
 
                 queries_list.append(query)
                 print(
@@ -227,6 +226,5 @@ with open(INPUT_FILE, "r") as fin, open(OUTPUT_FILE, "w") as fout:
 
 print(
     f"\nDone. Written: {total_written} | "
-    f"Duplicates skipped: {total_skipped_duplicate} | "
     f"Errors: {total_errors}"
 )

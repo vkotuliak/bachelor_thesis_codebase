@@ -2,8 +2,7 @@ import json
 import faiss
 from sentence_transformers import SentenceTransformer
 
-# DATA_PATH = "data/full_data/rag_documents.jsonl"
-DATA_PATH = "data/test_data/rag_ready_w_queries.jsonl"
+DATA_PATH = "data/full_data/rag_documents.jsonl"
 
 
 def load_data(path):
