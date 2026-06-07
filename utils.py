@@ -1,3 +1,4 @@
+from collections import defaultdict
 import json
 import re
 import nltk

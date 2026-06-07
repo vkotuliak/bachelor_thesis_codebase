@@ -16,6 +16,7 @@ Usage examples
 
 import argparse
 import json
+import pickle
 import time
 import numpy as np
 
@@ -77,13 +78,12 @@ def evaluate_bm25(
     queries: list[tuple[str, str]],
     ks: list[int],
 ) -> None:
-    from rank_bm25 import BM25Okapi
 
     id_to_pos = {eq_id: pos for pos, eq_id in enumerate(corpus_ids)}
 
     t0 = time.time()
-    tokenized = [utils.scientific_tokenizer(doc) for doc in corpus_texts]
-    bm25 = BM25Okapi(tokenized)
+    with open("data/dense/bm25_corpus.pkl", "rb") as f:
+        bm25 = pickle.load(f)
 
     recall_scores = {k: [] for k in ks}
     ndcg_scores = {k: [] for k in ks}
@@ -196,10 +196,10 @@ def evaluate_hybrid(
     corpus_ids: list[str],
     queries: list[tuple[str, str]],
     ks: list[int],
-    rrf_k: int = 60,
-    top_k: int = 500,
+    rrf_k: int = 10,
+    top_k: int = 200,
+    alpha: float = 0.4,  # weight for e5 (bm25 = 1-alpha)
 ) -> None:
-    from rank_bm25 import BM25Okapi
     import faiss
     from sentence_transformers import SentenceTransformer
 
@@ -207,9 +207,9 @@ def evaluate_hybrid(
 
     t0 = time.time()
 
-    # --- Build BM25 index ---
-    tokenized = [utils.scientific_tokenizer(doc) for doc in corpus_texts]
-    bm25 = BM25Okapi(tokenized)
+    # --- Load BM25 index ---
+    with open("data/dense/bm25_corpus.pkl", "rb") as f:
+        bm25 = pickle.load(f)
 
     # --- Load E5 model and FAISS index ---
     cfg = utils.DENSE_CONFIG["e5"]
@@ -241,16 +241,22 @@ def evaluate_hybrid(
         _, indices = index.search(all_embeddings[i : i + 1], top_k)
         e5_ranking = indices[0].tolist()
 
+        weight_bm25 = 1 - alpha
+        weight_e5 = alpha
+
         rrf_scores: dict[int, float] = {}
+
         for rank, doc_idx in enumerate(bm25_ranking, start=1):
-            rrf_scores[doc_idx] = rrf_scores.get(doc_idx, 0) + 1 / (
-                rrf_k + rank
-            )
-        for rank, doc_idx in enumerate(e5_ranking, start=1):
-            rrf_scores[doc_idx] = rrf_scores.get(doc_idx, 0) + 1 / (
-                rrf_k + rank
+            rrf_scores[doc_idx] = rrf_scores.get(doc_idx, 0.0) + (
+                weight_bm25 / (rrf_k + rank)
             )
 
+        for rank, doc_idx in enumerate(e5_ranking, start=1):
+            rrf_scores[doc_idx] = rrf_scores.get(doc_idx, 0.0) + (
+                weight_e5 / (rrf_k + rank)
+            )
+
+        # 3. Sort by the new weighted scores
         ranked_indices = sorted(rrf_scores, key=rrf_scores.get, reverse=True)
 
         for k in ks:

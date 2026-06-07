@@ -13,9 +13,9 @@ Usage examples
 
 import argparse
 from collections import defaultdict
+import pickle
 
 import numpy as np
-from rank_bm25 import BM25Okapi
 
 import utils
 
@@ -69,16 +69,26 @@ def run_dense(
     return ranked_indices
 
 
-def reciprocal_rank_fusion(results_list: list[list[str]], k: int = 60):
+def reciprocal_rank_fusion(
+    results_list: list[list[str]], k: int = 10, alpha: float = 0.4
+):
     scores = defaultdict(float)
-    for results in results_list:
-        for rank, doc_id in enumerate(results):
-            scores[doc_id] += 1.0 / (k + rank)
+    weights = [alpha, 1 - alpha]
+
+    for i, results in enumerate(results_list):
+        weight = weights[i]
+        for rank, doc_id in enumerate(results, start=1):
+            scores[doc_id] += weight / (k + rank)
+
     return sorted(scores, key=scores.__getitem__, reverse=True)
 
 
 def run_hybrid(
-    bm25, corpus: list[str], query: str, k: int = 100, n: int = 5
+    bm25,
+    corpus: list[str],
+    query: str,
+    k: int = 200,
+    num_of_results: int = DEFAULT_K,
 ) -> list[str]:
     dense_indices = run_dense(
         corpus,
@@ -91,7 +101,7 @@ def run_hybrid(
 
     fused = reciprocal_rank_fusion([dense_indices, sparse_indices])
 
-    return fused[:n]
+    return fused[:num_of_results]
 
 
 # CLI
@@ -131,10 +141,10 @@ def main() -> None:
     print(f"Model: {args.model}  |  k: {args.k}")
 
     if args.model == "bm25" or args.model == "hybrid":
-        print("Tokenising...")
-        tokenized_corpus = [utils.scientific_tokenizer(doc) for doc in corpus]
-        bm25 = BM25Okapi(tokenized_corpus)
-        print("Tokenisation finished. \n")
+        print("Loading Corpus...")
+        with open("data/dense/bm25_corpus.pkl", "rb") as f:
+            bm25 = pickle.load(f)
+        print("Corpus Loaded.\n")
 
     # Load heavy dependencies once, then loop
     while True:
@@ -161,7 +171,8 @@ def main() -> None:
 
         if args.generate:
             from rag_generator import generate
-            print(generate(query, results), "\n") 
+
+            print(generate(query, results), "\n")
         else:
             print_results(results)
 
