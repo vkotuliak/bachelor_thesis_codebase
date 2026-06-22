@@ -41,23 +41,19 @@ def run_bm25(bm25, corpus: list[str], query: str, k: int) -> list[str]:
     return top_docs
 
 
-def run_dense(
-    corpus: list[str], query: str, k: int, model_key: str
-) -> list[str]:
+def load_dense_model(model_key: str):
     import faiss
     from sentence_transformers import SentenceTransformer
 
     cfg = utils.DENSE_CONFIG[model_key]
     model = SentenceTransformer(cfg["model_name"])
     index = faiss.read_index(cfg["index_path"])
+    return model, index, cfg
 
-    if index.ntotal != len(corpus):
-        print(
-            f"[WARNING] FAISS index has {index.ntotal} vectors but corpus has "
-            f"{len(corpus)} documents. Results may be misaligned."
-        )
 
-    prefixed_query = cfg["query_prefix"] + query
+def run_dense(query: str, k: int, model, index, cfg) -> list[str]:
+
+    prefixed_query = cfg.get("query_prefix", "") + query
     embedding = model.encode([prefixed_query], normalize_embeddings=True)
     embedding = np.array(embedding, dtype=np.float32)
 
@@ -87,15 +83,13 @@ def run_hybrid(
     bm25,
     corpus: list[str],
     query: str,
+    model,
+    index,
+    cfg,
     k: int = 200,
     num_of_results: int = DEFAULT_K,
 ) -> list[str]:
-    dense_indices = run_dense(
-        corpus,
-        query,
-        k,
-        "e5",
-    )
+    dense_indices = run_dense(query, k, model, index, cfg)
     dense_indices = [corpus[int(i)] for i in dense_indices]
     sparse_indices = run_bm25(bm25, corpus, query, k)
 
@@ -132,21 +126,39 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def print_details(result: str) -> None:
+    print("\n--- Equipment Details ---")
+    fields = result.split("[SEP]")
+    for field in fields:
+        field = field.strip()
+        if not field:
+            continue
+        if ": " in field:
+            label, value = field.split(": ", 1)
+            print(f"{label.strip().upper()}: {value.strip()}")
+    print("-------------------------\n")
+
+
 def main() -> None:
     args = parse_args()
 
     print(f"Loading corpus from: {args.corpus}")
     corpus, _ = utils.load_corpus(args.corpus)
     print(f"Corpus size: {len(corpus)} documents")
-    print(f"Model: {args.model}  |  k: {args.k}")
+    print(f"Model: {args.model}  |  k: {args.k}\n")
 
     if args.model == "bm25" or args.model == "hybrid":
-        print("Loading Corpus...")
+        print("Loading corpus...")
         with open("data/dense/bm25_corpus.pkl", "rb") as f:
             bm25 = pickle.load(f)
-        print("Corpus Loaded.\n")
+        print("Corpus loaded.\n")
 
-    # Load heavy dependencies once, then loop
+    if args.model in ("hybrid", "e5", "mpnet"):
+        print("Loading dense model...")
+        model_name = "e5" if args.model == "hybrid" else args.model
+        dense_model, dense_index, dense_cfg = load_dense_model(model_name)
+        print("Model loaded\n")
+
     while True:
         try:
             query = input(
@@ -163,18 +175,52 @@ def main() -> None:
         if args.model == "bm25":
             results = [doc for doc in run_bm25(bm25, corpus, query, args.k)]
         elif args.model == "hybrid":
-            results = [doc for doc in run_hybrid(bm25, corpus, query)]
+            results = [
+                doc
+                for doc in run_hybrid(
+                    bm25,
+                    corpus,
+                    query,
+                    dense_model,
+                    dense_index,
+                    dense_cfg,
+                    num_of_results=args.k,
+                )
+            ]
         else:
             results = []
-            for i in run_dense(corpus, query, args.k, args.model):
+            for i in run_dense(
+                query,
+                args.k,
+                dense_model,
+                dense_index,
+                dense_cfg,
+            ):
                 results.append(corpus[int(i)])
 
         if args.generate:
             from rag_generator import generate
-
+            print("Generating answer...\n")
             print(generate(query, results), "\n")
         else:
             print_results(results)
+
+            while True:
+                try:
+                    choice = input(
+                        f"Enter number (1-{len(results)}) for details, or press Enter for new search:\n> "
+                    ).strip()
+                except (KeyboardInterrupt, EOFError):
+                    print("\nExiting.")
+                    return
+
+                if not choice:
+                    break
+
+                if choice.isdigit() and 1 <= int(choice) <= len(results):
+                    print_details(results[int(choice) - 1])
+                else:
+                    print(f"Bad number. Pick 1-{len(results)}.\n")
 
 
 if __name__ == "__main__":
