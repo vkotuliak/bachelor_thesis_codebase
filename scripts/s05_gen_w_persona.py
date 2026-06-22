@@ -9,9 +9,11 @@ OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b")
 # MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:e4b")
 
-INPUT_FILE = os.environ.get("INPUT_FILE", "data/test_data/w_queries_500.jsonl")
+INPUT_FILE = os.environ.get(
+    "INPUT_FILE", "data/gen_persona_new/rag_doc_500.jsonl"
+)
 OUTPUT_FILE = os.environ.get(
-    "OUTPUT_FILE", "data/test_data/personas_testing.jsonl"
+    "OUTPUT_FILE", "data/gen_persona_new/personas_testing.jsonl"
 )
 
 # Fallback personas used if grounded persona generation fails for a document
@@ -31,7 +33,7 @@ FALLBACK_PERSONAS = [
 ]
 
 DEDUP_THRESHOLD = (
-    0.8  # similarity ratio above which a query is considered a duplicate
+    0.3  # similarity ratio above which a query is considered a duplicate
 )
 
 
@@ -104,38 +106,61 @@ Return ONLY a JSON array with exactly 5 objects:
 ]"""
 
 
-def generate_personas(item: dict, doc_index: int) -> list[dict]:
+def generate_personas(
+    item: dict, doc_index: int, target: int = 5, max_attempts: int = 5
+) -> list[dict]:
     """
-    Run Text-to-Persona for one document.
-    Falls back to FALLBACK_PERSONAS if generation fails.
+    Run Text-to-Persona for one document, retrying until `target` deduplicated
+    personas are collected or `max_attempts` is exhausted.
+    Falls back to FALLBACK_PERSONAS if too few unique personas are found.
     """
+    seen_descriptions = []
+    dedup = []
+    attempt = 0
+
     try:
-        prompt = build_persona_gen_prompt(item)
-        raw = ollama_generate(prompt)
-        personas = extract_json_array(raw)
+        while len(dedup) < target and attempt < max_attempts:
+            attempt += 1
+            print(
+                f"  [{doc_index}] Persona generation attempt {attempt}/{max_attempts} "
+                f"({len(dedup)}/{target} collected so far)."
+            )
 
-        # validate structure — keep only well-formed entries
-        valid = [
-            p
-            for p in personas
-            if isinstance(p, dict) and "name" in p and "description" in p
-        ]
+            prompt = build_persona_gen_prompt(item)
+            raw = ollama_generate(prompt)
+            personas = extract_json_array(raw)
 
-        # deduplicate personas
-        seen_descriptions = []
-        dedup = []
-        for p in valid:
-            if not is_duplicate(p["description"], seen_descriptions):
-                seen_descriptions.append(p["description"])
-                dedup.append(p)
-            else:
-                print(f"  [{doc_index}] SKIPPED duplicate persona '{p['name']}'.")
+            valid = [
+                p
+                for p in personas
+                if isinstance(p, dict) and "name" in p and "description" in p
+            ]
 
-        if len(valid) < 2:
-            raise ValueError(f"Too few valid personas returned ({len(valid)})")
+            for p in valid:
+                if len(dedup) >= target:
+                    break
+                if not is_duplicate(p["description"], seen_descriptions):
+                    seen_descriptions.append(p["description"])
+                    dedup.append(p)
+                else:
+                    print(
+                        f"  [{doc_index}] SKIPPED duplicate persona '{p['name']}'."
+                    )
 
-        print(f"  [{doc_index}] Generated {len(valid)} grounded personas.")
-        return valid
+        if len(dedup) < 2:
+            raise ValueError(
+                f"Too few unique personas after {attempt} attempt(s) ({len(dedup)} collected)."
+            )
+
+        if len(dedup) < target:
+            print(
+                f"  [{doc_index}] WARNING: Only {len(dedup)}/{target} unique personas "
+                f"collected after {attempt} attempt(s).",
+                file=sys.stderr,
+            )
+
+        print(f"  [{doc_index}] Generated {len(dedup)} unique personas.")
+        return dedup
 
     except Exception as e:
         print(
@@ -214,7 +239,7 @@ with open(INPUT_FILE, "r") as fin, open(OUTPUT_FILE, "w") as fout:
 
         if queries_list:
             new_entry = {
-                "equipment_id": item.get("id", i),
+                "id": item.get("id", i),
                 "name": item.get("name"),
                 "query": queries_list,
             }
@@ -224,7 +249,4 @@ with open(INPUT_FILE, "r") as fin, open(OUTPUT_FILE, "w") as fout:
         else:
             print(f"  [{i}] WARNING: No queries generated, skipping entry.")
 
-print(
-    f"\nDone. Written: {total_written} | "
-    f"Errors: {total_errors}"
-)
+print(f"\nDone. Written: {total_written} | " f"Errors: {total_errors}")
