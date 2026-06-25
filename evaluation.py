@@ -1,11 +1,11 @@
 """
-evaluation.py  –  Unified retrieval evaluation for BM25, all-mpnet-base-v2,
-    E5-large-v2, and Hybrid retrieval (E5 + BM25).
+evaluation.py  –  Unified retrieval evaluation for TF-IDF BM25,
+    all-mpnet-base-v2, E5-large-v2, and Hybrid retrieval (E5 + BM25).
 
 Usage examples
 --------------
   # Run all four models
-  python evaluation.py --models bm25 mpnet e5 hybrid
+  python evaluation.py --models tfidf bm25 mpnet e5 hybrid
 
   # Run only BM25 and E5
   python evaluation.py --models bm25 e5
@@ -69,6 +69,62 @@ def ndcg_at_k(ranked_indices: list[int], relevant_idx: int, k: int) -> float:
 def get_bm25_ranking(query_tokens: list[str], bm25_model) -> list[int]:
     scores = bm25_model.get_scores(query_tokens)
     return sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
+
+
+def evaluate_tfidf(
+    corpus_texts: list[str],
+    corpus_ids: list[str],
+    queries: list[tuple[str, str]],
+    ks: list[int],
+) -> None:
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.preprocessing import normalize
+
+    id_to_pos = {eq_id: pos for pos, eq_id in enumerate(corpus_ids)}
+
+    t0 = time.time()
+
+    vectorizer = TfidfVectorizer(
+        tokenizer=utils.scientific_tokenizer,
+        lowercase=False,
+        token_pattern=None,
+    )
+    corpus_matrix = normalize(
+        vectorizer.fit_transform(corpus_texts)
+    )  # (N, V), L2-normalised
+
+    recall_scores = {k: [] for k in ks}
+    ndcg_scores = {k: [] for k in ks}
+    rr_scores = []
+
+    for query, relevant_eq_id in queries:
+        relevant_pos = id_to_pos[relevant_eq_id]
+
+        query_vec = normalize(vectorizer.transform([query]))  # (1, V)
+        scores = (
+            (corpus_matrix @ query_vec.T).toarray().ravel()
+        )  # cosine similarity
+        ranked_indices = sorted(
+            range(len(scores)), key=lambda i: scores[i], reverse=True
+        )
+
+        for k in ks:
+            recall_scores[k].append(
+                recall_at_k(ranked_indices, relevant_pos, k)
+            )
+            ndcg_scores[k].append(ndcg_at_k(ranked_indices, relevant_pos, k))
+        rr_scores.append(reciprocal_rank(ranked_indices, relevant_pos))
+
+    utils.aggregate_and_print(
+        "TF-IDF",
+        queries,
+        len(corpus_texts),
+        recall_scores,
+        ndcg_scores,
+        rr_scores,
+        ks,
+        time.time() - t0,
+    )
 
 
 # BM25 evaluator
@@ -289,9 +345,9 @@ def parse_args() -> argparse.Namespace:
         "--models",
         nargs="+",
         required=True,
-        choices=["bm25", "mpnet", "e5", "hybrid"],
+        choices=["tfidf", "bm25", "mpnet", "e5", "hybrid"],
         metavar="MODEL",
-        help="One or more of: bm25  mpnet  e5 hybrid",
+        help="One or more of: tfidf bm25  mpnet  e5 hybrid",
     )
     parser.add_argument(
         "--ks",
@@ -317,7 +373,9 @@ def main() -> None:
     print(f"k values        : {args.ks}")
 
     for model_key in args.models:
-        if model_key == "bm25":
+        if model_key == "tfidf":
+            evaluate_tfidf(corpus[0], corpus[1], queries, args.ks)
+        elif model_key == "bm25":
             evaluate_bm25(corpus[0], corpus[1], queries, args.ks)
         elif model_key == "hybrid":
             evaluate_hybrid(corpus[0], corpus[1], queries, args.ks)
