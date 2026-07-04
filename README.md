@@ -25,13 +25,13 @@ python app.py --model <model_name> --k 10
 
 To evaluate these models, run the file `evaluation.py` with fillowing command:
 ```
-python evaluation.py --model <model_name>
+python evaluation.py --models <model_name>
 ```
-model_name can have 4 values: bm25, mpnet, e5 and hybrid (combination of bm25 and e5). To run multiple evaluations, it is possible to combine the parameters.
+model_name can have 5 values: tfidf, bm25, mpnet, e5 and hybrid (combination of bm25 and e5). To run multiple evaluations, it is possible to combine the parameters.
 
 It is possible to change k in recall and nDCG evaluation with flag `--ks`
 ```
-python evaluation.py --model <model_name> --ks 5 10
+python evaluation.py --models <model_name> --ks 5 10
 ```
 
 ### data/
