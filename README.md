@@ -1,6 +1,17 @@
 ## Bachelor thesis for implementation of RAG system on university equipment
 
-This project aims to develop a Retrieval Augmented Generation (RAG) system, to make search in university database easier.
+Bachelor thesis (BSc Artificial Intelligence, University of Groningen, 2026). This project compares sparse (BM25), dense (all-mpnet, E5) and hybrid retrieval for a RAG system that helps researchers find equipment in the university's 8,587-item database. Systems are evaluated on 2,500 synthetic queries (500 items × 5 persona-based queries) with Recall@k and nDCG@k.
+
+**Key result:** a BM25 + E5 hybrid with weighted reciprocal rank fusion performed best.
+
+| System        | nDCG@10 | Recall@10 |
+|---------------|---------|-----------|
+| BM25 + E5 hybrid (weighted RRF) | **0.68** | **0.83** |
+| BM25          | 0.66    | 0.78      |
+| E5            | 0.57    | 0.71      |
+| all-mpnet     | 0.47    | 0.63      |
+
+Full thesis: [thesis.pdf](thesis.pdf)
 
 ### Running the application:
 
@@ -23,11 +34,11 @@ python app.py --model <model_name> --k 10
 
 ### Evaluation:
 
-To evaluate these models, run the file `evaluation.py` with fillowing command:
+To evaluate these models, run the file `evaluation.py` with following command:
 ```
 python evaluation.py --models <model_name>
 ```
-model_name can have 5 values: tfidf, bm25, mpnet, e5 and hybrid (combination of bm25 and e5). To run multiple evaluations, it is possible to combine the parameters.
+model_name can have 5 values: bm25, mpnet, e5 and hybrid (combination of bm25 and e5). To run multiple evaluations, it is possible to combine the parameters.
 
 It is possible to change k in recall and nDCG evaluation with flag `--ks`
 ```
@@ -59,6 +70,6 @@ Directory for building embeddings for *E5* and *all-mpnet*
 ### scripts/
 
 1. `s01_build_documents.py`: Cleans the data from csv and creates two jsonl files
-2. `s02_visualise_data.py`: Visualise percentage of completeness for collumns in the csv dataset.
-3. `s04_gen_w_example.py`: Original generation file, used to generage queries using example from instruction sheet. Deprecated now.
+2. `s02_visualise_data.py`: Visualise percentage of completeness for columns in the csv dataset.
+3. `s04_gen_w_example.py`: Original generation file, used to generate queries using example from instruction sheet. Deprecated now.
 4. `s05_gen_w_persona.py`: New generation file, taken from Ge, Tao, et al. (2024).
